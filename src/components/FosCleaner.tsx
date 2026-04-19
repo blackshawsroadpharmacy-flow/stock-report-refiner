@@ -6,6 +6,7 @@ import {
   type ProcessResult,
 } from "@/lib/fos-processor";
 import { analyze, type AnalysisResult } from "@/lib/fos-analyzer";
+import { buildAndDownloadAnalysisWorkbook } from "@/lib/fos-excel-export";
 import { StockAnalysisReport } from "./StockAnalysisReport";
 
 type Status =
