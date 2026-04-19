@@ -1117,7 +1117,7 @@ export function buildAndDownloadAnalysisWorkbook(rows: any[][]): ExcelExportSumm
   if (!wb.Workbook) wb.Workbook = { Sheets: [] };
   if (!wb.Workbook.Sheets) wb.Workbook.Sheets = [];
   for (let i = 0; i < tabColors.length; i++) {
-    wb.Workbook.Sheets[i] = { ...(wb.Workbook.Sheets[i] || {}), tabColor: { rgb: tabColors[i] } as any };
+    (wb.Workbook.Sheets as any)[i] = { ...((wb.Workbook.Sheets as any)[i] || {}), tabColor: { rgb: tabColors[i] } };
   }
 
   const yyyymmdd = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
