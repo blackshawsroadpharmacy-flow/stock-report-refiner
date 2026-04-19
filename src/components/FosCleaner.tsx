@@ -28,6 +28,8 @@ export function FosCleaner() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [analysing, setAnalysing] = useState(false);
   const [analysisStep, setAnalysisStep] = useState(0);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [excelToast, setExcelToast] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -94,6 +96,25 @@ export function FosCleaner() {
     const result = analyze(status.result.rows);
     setAnalysis(result);
     setAnalysing(false);
+  };
+
+  const onDownloadAnalysisExcel = async () => {
+    if (status.kind !== "success") return;
+    setExportingExcel(true);
+    setExcelToast(null);
+    try {
+      // Yield to the event loop so the spinner paints before the heavy work.
+      await new Promise((r) => setTimeout(r, 50));
+      const summary = buildAndDownloadAnalysisWorkbook(status.result.rows);
+      setExcelToast(
+        `✓ Analysis exported — ${summary.productCount} products, ${summary.flagCount} flags raised`,
+      );
+      window.setTimeout(() => setExcelToast(null), 5000);
+    } catch (e: any) {
+      setExcelToast(`✗ Export failed — ${e?.message || "unknown error"}`);
+    } finally {
+      setExportingExcel(false);
+    }
   };
 
   const previewRows =
