@@ -29,14 +29,18 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "FOS Stock Analyser" },
+      { name: "description", content: "FOS Stock Analyser cleans raw Z Office stock reports and performs data analysis." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "FOS Stock Analyser" },
+      { property: "og:description", content: "FOS Stock Analyser cleans raw Z Office stock reports and performs data analysis." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "FOS Stock Analyser" },
+      { name: "twitter:description", content: "FOS Stock Analyser cleans raw Z Office stock reports and performs data analysis." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/XixyHjEfWVVN7GXjGCOwme461iv2/social-images/social-1776571190946-Recreate_this_photo_202603291228.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/XixyHjEfWVVN7GXjGCOwme461iv2/social-images/social-1776571190946-Recreate_this_photo_202603291228.webp" },
     ],
     links: [
       {
