@@ -192,7 +192,7 @@ export function FosCleaner() {
             )}
             {status.kind === "success" && (
               <div className="rounded-md bg-success/10 px-4 py-3 text-sm font-medium text-success">
-                ✓ File processed — {status.result.rowCount} stock lines found
+                ✓ {status.result.rowCount} products loaded — ready to analyse
               </div>
             )}
             {status.kind === "error" && (
@@ -212,6 +212,14 @@ export function FosCleaner() {
             >
               Download Cleaned Report (.xlsx)
             </button>
+            <button
+              type="button"
+              disabled={status.kind !== "success" || analysing}
+              onClick={onRunAnalysis}
+              className="inline-flex items-center justify-center rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              📊 Run Stock Analysis
+            </button>
             {status.kind !== "idle" && (
               <button
                 type="button"
@@ -222,6 +230,14 @@ export function FosCleaner() {
               </button>
             )}
           </div>
+
+          {/* Analysis progress */}
+          {analysing && (
+            <div className="mt-4 flex items-center gap-3 rounded-md bg-muted px-4 py-3 text-sm text-muted-foreground">
+              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              {ANALYSIS_STEPS[analysisStep]}
+            </div>
+          )}
 
           {/* Preview */}
           {status.kind === "success" && (
@@ -269,6 +285,12 @@ export function FosCleaner() {
         <p className="mt-6 text-center text-xs text-muted-foreground">
           All processing happens in your browser — no data leaves your device.
         </p>
+
+        {analysis && (
+          <div ref={reportRef} className="mt-10">
+            <StockAnalysisReport result={analysis} onReset={reset} />
+          </div>
+        )}
       </main>
     </div>
   );
