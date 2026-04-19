@@ -1,10 +1,12 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   processFosFile,
   downloadWorkbook,
   HEADERS,
   type ProcessResult,
 } from "@/lib/fos-processor";
+import { analyze, type AnalysisResult } from "@/lib/fos-analyzer";
+import { StockAnalysisReport } from "./StockAnalysisReport";
 
 type Status =
   | { kind: "idle" }
@@ -12,10 +14,27 @@ type Status =
   | { kind: "success"; filename: string; result: ProcessResult }
   | { kind: "error"; message: string };
 
+const ANALYSIS_STEPS = [
+  "Parsing product data…",
+  "Analysing pricing integrity…",
+  "Checking stockouts & dead stock…",
+  "Scoring products…",
+];
+
 export function FosCleaner() {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [dragActive, setDragActive] = useState(false);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analysing, setAnalysing] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (analysis && reportRef.current) {
+      reportRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [analysis]);
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".xlsx")) {
@@ -51,12 +70,29 @@ export function FosCleaner() {
 
   const reset = () => {
     setStatus({ kind: "idle" });
+    setAnalysis(null);
+    setAnalysing(false);
+    setAnalysisStep(0);
     if (inputRef.current) inputRef.current.value = "";
   };
 
   const onDownload = () => {
     if (status.kind !== "success") return;
     downloadWorkbook(status.result.workbook, status.result.filename);
+  };
+
+  const onRunAnalysis = async () => {
+    if (status.kind !== "success") return;
+    setAnalysing(true);
+    setAnalysisStep(0);
+    // Animate steps so user sees progress feedback (~1.4s total)
+    for (let i = 0; i < ANALYSIS_STEPS.length; i++) {
+      setAnalysisStep(i);
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    const result = analyze(status.result.rows);
+    setAnalysis(result);
+    setAnalysing(false);
   };
 
   const previewRows =
