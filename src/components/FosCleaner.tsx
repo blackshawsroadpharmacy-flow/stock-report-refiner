@@ -6,6 +6,7 @@ import {
   type ProcessResult,
 } from "@/lib/fos-processor";
 import { analyze, type AnalysisResult } from "@/lib/fos-analyzer";
+import { buildAndDownloadAnalysisWorkbook } from "@/lib/fos-excel-export";
 import { StockAnalysisReport } from "./StockAnalysisReport";
 
 type Status =
@@ -27,6 +28,8 @@ export function FosCleaner() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [analysing, setAnalysing] = useState(false);
   const [analysisStep, setAnalysisStep] = useState(0);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [excelToast, setExcelToast] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +76,8 @@ export function FosCleaner() {
     setAnalysis(null);
     setAnalysing(false);
     setAnalysisStep(0);
+    setExportingExcel(false);
+    setExcelToast(null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -93,6 +98,25 @@ export function FosCleaner() {
     const result = analyze(status.result.rows);
     setAnalysis(result);
     setAnalysing(false);
+  };
+
+  const onDownloadAnalysisExcel = async () => {
+    if (status.kind !== "success") return;
+    setExportingExcel(true);
+    setExcelToast(null);
+    try {
+      // Yield to the event loop so the spinner paints before the heavy work.
+      await new Promise((r) => setTimeout(r, 50));
+      const summary = buildAndDownloadAnalysisWorkbook(status.result.rows);
+      setExcelToast(
+        `✓ Analysis exported — ${summary.productCount} products, ${summary.flagCount} flags raised`,
+      );
+      window.setTimeout(() => setExcelToast(null), 5000);
+    } catch (e: any) {
+      setExcelToast(`✗ Export failed — ${e?.message || "unknown error"}`);
+    } finally {
+      setExportingExcel(false);
+    }
   };
 
   const previewRows =
@@ -220,6 +244,17 @@ export function FosCleaner() {
             >
               📊 Run Stock Analysis
             </button>
+            <button
+              type="button"
+              disabled={status.kind !== "success" || exportingExcel}
+              onClick={onDownloadAnalysisExcel}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {exportingExcel && (
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              )}
+              📥 Download Analysis (.xlsx)
+            </button>
             {status.kind !== "idle" && (
               <button
                 type="button"
@@ -230,6 +265,29 @@ export function FosCleaner() {
               </button>
             )}
           </div>
+
+          {/* Excel export status */}
+          {(exportingExcel || excelToast) && (
+            <div className="mt-4">
+              {exportingExcel && (
+                <div className="flex items-center gap-3 rounded-md bg-muted px-4 py-3 text-sm text-muted-foreground">
+                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  Building your analysis workbook…
+                </div>
+              )}
+              {!exportingExcel && excelToast && (
+                <div
+                  className={`rounded-md px-4 py-3 text-sm font-medium ${
+                    excelToast.startsWith("✓")
+                      ? "bg-success/10 text-success"
+                      : "bg-destructive/10 text-destructive"
+                  }`}
+                >
+                  {excelToast}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Analysis progress */}
           {analysing && (
