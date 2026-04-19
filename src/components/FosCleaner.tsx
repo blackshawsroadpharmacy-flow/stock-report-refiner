@@ -76,6 +76,8 @@ export function FosCleaner() {
     setAnalysis(null);
     setAnalysing(false);
     setAnalysisStep(0);
+    setExportingExcel(false);
+    setExcelToast(null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
