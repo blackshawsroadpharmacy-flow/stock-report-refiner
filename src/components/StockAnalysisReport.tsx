@@ -141,7 +141,7 @@ export const REPORT_CSS = `
   body { background: #fff !important; }
   .fos-report { background: #fff; font-size: 11px; }
   .fos-report .container { padding: 0; max-width: none; }
-  .fos-report .toolbar, .fos-report .no-print { display: none !important; }
+  .fos-report .toolbar, .fos-report .no-print, .fos-report .tabbar { display: none !important; }
   .fos-report h2 { page-break-before: always; }
   .fos-report h2:first-of-type { page-break-before: auto; }
   .fos-report .kpi, .fos-report .flag-card, .fos-report table.scorecard, .fos-report .header-card {
