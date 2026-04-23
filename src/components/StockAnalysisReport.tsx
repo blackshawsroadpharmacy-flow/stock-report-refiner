@@ -7,6 +7,7 @@ import {
   fmtPct,
   fmtDate,
 } from "@/lib/fos-analyzer";
+import { DeeperDiveButton } from "./deeper-dive/DeeperDiveButton";
 
 // All styles live in this string so the downloaded HTML is fully self-contained.
 export const REPORT_CSS = `
@@ -334,6 +335,8 @@ export function StockAnalysisReport({
           <div className="kpi"><div className="label">Products w/ Zero Sales</div><div className="value">{t.zeroSalesCount}</div></div>
           <div className="kpi"><div className="label">Currently Out of Stock</div><div className="value">{t.outOfStockCount}</div></div>
         </div>
+
+        <DeeperDiveButton result={result} />
 
         {SECTIONS.map((s) => (
           <Section
