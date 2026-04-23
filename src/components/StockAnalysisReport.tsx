@@ -113,6 +113,26 @@ export const REPORT_CSS = `
 .fos-report .score-pill.action   { background: var(--orange); }
 .fos-report .score-pill.urgent   { background: var(--red); }
 .fos-report .footer-note { text-align: center; color: var(--grey-500); font-size: 12px; margin-top: 32px; }
+.fos-report .tabbar {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--card-white); border-bottom: 1px solid var(--grey-200);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex; align-items: center; gap: 4px;
+  padding: 8px 16px; overflow-x: auto;
+}
+.fos-report .tabbar .tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; color: var(--grey-500); border: 0;
+  padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.fos-report .tabbar .tab:hover { background: var(--grey-50); color: var(--navy); }
+.fos-report .tabbar .tab.active { background: var(--grey-100); color: var(--navy); }
+.fos-report .tabbar .tab.deeper {
+  background: var(--navy); color: #fff; margin-left: auto;
+  box-shadow: 0 2px 8px rgba(16,24,63,0.25);
+}
+.fos-report .tabbar .tab.deeper:hover { background: var(--crimson); color: #fff; opacity: 1; }
 
 @media (max-width: 700px) {
   .fos-report .kpi-grid { grid-template-columns: 1fr 1fr; }
