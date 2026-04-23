@@ -84,3 +84,21 @@
       sans-serif;
   }
 }
+
+@media print {
+  body * { visibility: hidden !important; }
+  #print-action-card, #print-action-card * { visibility: visible !important; }
+  #print-action-card {
+    position: absolute; left: 0; top: 0; width: 100%;
+    background: #fff !important; color: #000 !important;
+    padding: 16px;
+  }
+  #print-action-card table { border-collapse: collapse; width: 100%; }
+  #print-action-card th, #print-action-card td {
+    border: 1px solid #000 !important; background: #fff !important; color: #000 !important;
+    padding: 6px 8px;
+  }
+  #print-action-card tr { page-break-inside: avoid; }
+  .no-print { display: none !important; }
+  @page { size: A4 portrait; margin: 12mm; }
+}
