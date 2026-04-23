@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   type AnalysisResult,
   type Flag,
@@ -7,7 +7,7 @@ import {
   fmtPct,
   fmtDate,
 } from "@/lib/fos-analyzer";
-import { DeeperDiveButton } from "./deeper-dive/DeeperDiveButton";
+import { DeeperDiveModal } from "./deeper-dive/DeeperDiveModal";
 
 // All styles live in this string so the downloaded HTML is fully self-contained.
 export const REPORT_CSS = `
