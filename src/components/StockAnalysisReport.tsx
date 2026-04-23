@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   type AnalysisResult,
   type Flag,
@@ -7,7 +7,7 @@ import {
   fmtPct,
   fmtDate,
 } from "@/lib/fos-analyzer";
-import { DeeperDiveButton } from "./deeper-dive/DeeperDiveButton";
+import { DeeperDiveModal } from "./deeper-dive/DeeperDiveModal";
 
 // All styles live in this string so the downloaded HTML is fully self-contained.
 export const REPORT_CSS = `
@@ -113,6 +113,26 @@ export const REPORT_CSS = `
 .fos-report .score-pill.action   { background: var(--orange); }
 .fos-report .score-pill.urgent   { background: var(--red); }
 .fos-report .footer-note { text-align: center; color: var(--grey-500); font-size: 12px; margin-top: 32px; }
+.fos-report .tabbar {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--card-white); border-bottom: 1px solid var(--grey-200);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex; align-items: center; gap: 4px;
+  padding: 8px 16px; overflow-x: auto;
+}
+.fos-report .tabbar .tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; color: var(--grey-500); border: 0;
+  padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.fos-report .tabbar .tab:hover { background: var(--grey-50); color: var(--navy); }
+.fos-report .tabbar .tab.active { background: var(--grey-100); color: var(--navy); }
+.fos-report .tabbar .tab.deeper {
+  background: var(--navy); color: #fff; margin-left: auto;
+  box-shadow: 0 2px 8px rgba(16,24,63,0.25);
+}
+.fos-report .tabbar .tab.deeper:hover { background: var(--crimson); color: #fff; opacity: 1; }
 
 @media (max-width: 700px) {
   .fos-report .kpi-grid { grid-template-columns: 1fr 1fr; }
@@ -121,7 +141,7 @@ export const REPORT_CSS = `
   body { background: #fff !important; }
   .fos-report { background: #fff; font-size: 11px; }
   .fos-report .container { padding: 0; max-width: none; }
-  .fos-report .toolbar, .fos-report .no-print { display: none !important; }
+  .fos-report .toolbar, .fos-report .no-print, .fos-report .tabbar { display: none !important; }
   .fos-report h2 { page-break-before: always; }
   .fos-report h2:first-of-type { page-break-before: auto; }
   .fos-report .kpi, .fos-report .flag-card, .fos-report table.scorecard, .fos-report .header-card {
@@ -268,6 +288,7 @@ export function StockAnalysisReport({
   onReset?: () => void;
 }) {
   const reportRef = useRef<HTMLDivElement>(null);
+  const [deeperOpen, setDeeperOpen] = useState(false);
 
   const onPrint = () => window.print();
 
@@ -298,11 +319,24 @@ export function StockAnalysisReport({
     URL.revokeObjectURL(url);
   };
 
+  const scrollToId = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const t = result.totals;
 
   return (
     <div className="fos-report">
       <style>{REPORT_CSS}</style>
+      <div className="tabbar no-print">
+        <button className="tab" onClick={() => scrollToId("summary")}>📊 Summary</button>
+        <button className="tab" onClick={() => scrollToId("sections")}>🚦 Flags</button>
+        <button className="tab" onClick={() => scrollToId("scorecard")}>📋 Scorecard</button>
+        <button className="tab deeper" onClick={() => setDeeperOpen(true)}>
+          🔍 Deeper Dive Analysis
+        </button>
+      </div>
       <div className="container" ref={reportRef}>
         <div className="header-card">
           <h1>FOS Stock Analysis Report</h1>
@@ -326,7 +360,7 @@ export function StockAnalysisReport({
           </div>
         </div>
 
-        <h2>📊 Executive Summary</h2>
+        <h2 id="summary">📊 Executive Summary</h2>
         <div className="kpi-grid">
           <div className="kpi"><div className="label">Total Stock Value</div><div className="value">{fmtAUD(t.stockValue)}</div></div>
           <div className="kpi"><div className="label">Total GP Earned</div><div className="value">{fmtAUD(t.salesGP)}</div></div>
@@ -336,25 +370,30 @@ export function StockAnalysisReport({
           <div className="kpi"><div className="label">Currently Out of Stock</div><div className="value">{t.outOfStockCount}</div></div>
         </div>
 
-        <DeeperDiveButton result={result} />
+        <div id="sections">
+          {SECTIONS.map((s) => (
+            <Section
+              key={s.num}
+              result={result}
+              num={s.num}
+              title={s.title}
+              emoji={s.emoji}
+              subtitle={s.subtitle}
+            />
+          ))}
+        </div>
 
-        {SECTIONS.map((s) => (
-          <Section
-            key={s.num}
-            result={result}
-            num={s.num}
-            title={s.title}
-            emoji={s.emoji}
-            subtitle={s.subtitle}
-          />
-        ))}
-
-        <Scorecard result={result} />
+        <div id="scorecard">
+          <Scorecard result={result} />
+        </div>
 
         <div className="footer-note">
           Generated by FOS Stock Report Cleaner — all analysis performed in your browser.
         </div>
       </div>
+      {deeperOpen && (
+        <DeeperDiveModal open={deeperOpen} onOpenChange={setDeeperOpen} result={result} />
+      )}
     </div>
   );
 }
