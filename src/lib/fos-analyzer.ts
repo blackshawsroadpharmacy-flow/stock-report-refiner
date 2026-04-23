@@ -1,6 +1,8 @@
 // Rule-based analysis engine for cleaned FOS Stock Report rows.
 // Pure functions — no DOM, no React. Safe to test in isolation.
 
+import { getThresholds } from "@/config/analysisConfig";
+
 export type Product = {
   stockName: string;
   fullName: string;
@@ -172,6 +174,8 @@ function evaluate(p: Product, periodDays: number): Flag[] {
   const push = (f: Omit<Flag, "categoryLabel">) =>
     flags.push({ ...f, categoryLabel: CATEGORY_LABELS[f.category] });
 
+  const T = getThresholds();
+
   // ===== Category 1 =====
   if (p.sellPrice > 0 && p.ws1Cost > 0 && p.sellPrice < p.ws1Cost) {
     const loss = p.ws1Cost - p.sellPrice;
@@ -189,7 +193,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
       action: `Review sell price immediately. Increase to at least ${fmtAUD(p.ws1Cost * 1.35)} for a healthy margin.`,
     });
   }
-  if (p.marginPct > 0 && p.marginPct < 20 && p.qtySold > 0) {
+  if (p.marginPct > 0 && p.marginPct < T.MIN_VIABLE_MARGIN_PCT && p.qtySold > 0) {
     push({
       ruleId: "1.2",
       category: 1,
@@ -204,7 +208,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
       action: "Target minimum 30% margin for front-of-shop products. Consider price increase or supplier negotiation.",
     });
   }
-  if (p.cost > 0 && p.avgCost > 0 && p.cost > p.avgCost * 1.05) {
+  if (p.cost > 0 && p.avgCost > 0 && p.cost > p.avgCost * T.COST_CREEP_FACTOR) {
     const diff = p.cost - p.avgCost;
     const pct = (diff / p.avgCost) * 100;
     const effMargin = p.sellPrice > 0 ? ((p.sellPrice - p.cost) / p.sellPrice) * 100 : 0;
@@ -223,7 +227,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
       action: "Check if sell price has been updated to reflect the cost increase. Consider a price review.",
     });
   }
-  if (p.ws1Cost > 0 && p.ws1CostEnd > p.ws1Cost * 1.05) {
+  if (p.ws1Cost > 0 && p.ws1CostEnd > p.ws1Cost * T.COST_CREEP_FACTOR) {
     const pct = ((p.ws1CostEnd - p.ws1Cost) / p.ws1Cost) * 100;
     push({
       ruleId: "1.4",
@@ -255,7 +259,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
       action: `Consider markdown, return to supplier, or move to clearance. Capital tied up: ${fmtAUD(p.soh * p.cost)}.`,
     });
   }
-  if (p.qtySold > 0 && p.qtySold <= 1 && p.soh > 0) {
+  if (p.qtySold > 0 && p.qtySold <= T.SLOW_MOVER_MAX_QTY && p.soh > 0) {
     const days = p.qtySold > 0 ? Math.round((p.soh / p.qtySold) * periodDays) : 0;
     push({
       ruleId: "2.2",
@@ -271,7 +275,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
       action: `Review facing and placement. At current rate, ${p.soh} units ≈ ${days} days of stock remaining.`,
     });
   }
-  if (p.daysSincePurchased !== null && p.daysSincePurchased > 365 && p.soh > 0) {
+  if (p.daysSincePurchased !== null && p.daysSincePurchased > T.GHOST_STOCK_DAYS && p.soh > 0) {
     push({
       ruleId: "2.3",
       category: 2,
@@ -286,7 +290,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
       action: "Verify physical stock count. Product may be discontinued or superseded.",
     });
   }
-  if (p.daysSinceSold !== null && p.daysSinceSold > 365 && p.soh > 0) {
+  if (p.daysSinceSold !== null && p.daysSinceSold > T.STALE_SOLD_DAYS && p.soh > 0) {
     push({
       ruleId: "2.4",
       category: 2,
@@ -324,7 +328,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
   if (
     p.soh === 0 &&
     p.qtySold > 0 &&
-    (p.daysSinceSold === null || p.daysSinceSold < 60)
+    (p.daysSinceSold === null || p.daysSinceSold < T.STOCKOUT_MAX_DAYS_SINCE_SOLD)
   ) {
     const gpPerUnit = p.qtySold > 0 ? p.salesGP / p.qtySold : 0;
     const monthlyLost = (p.salesGP / Math.max(periodDays, 1)) * 30;
@@ -343,7 +347,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
       action: `Reorder immediately. Lost GP ≈ ${fmtAUD(gpPerUnit)} per unit. Approx ${fmtAUD(monthlyLost)}/month in lost margin.`,
     });
   }
-  if (p.soh > 0 && p.soh <= 2 && p.qtySold >= 8) {
+  if (p.soh > 0 && p.soh <= T.LOW_STOCK_MAX_SOH && p.qtySold >= T.LOW_STOCK_MIN_QTY_SOLD) {
     const days = p.qtySold > 0 ? Math.round((p.soh / p.qtySold) * periodDays) : 0;
     push({
       ruleId: "3.2",
@@ -359,7 +363,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
       action: `Reorder urgently. Approx ${days} days of stock remaining at current sell rate.`,
     });
   }
-  if (p.soh === 0 && p.daysSinceSold !== null && p.daysSinceSold < 30) {
+  if (p.soh === 0 && p.daysSinceSold !== null && p.daysSinceSold < T.STOCKOUT_MAX_DAYS_SINCE_SOLD) {
     push({
       ruleId: "3.3",
       category: 3,
@@ -375,7 +379,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
   }
 
   // ===== Category 4 =====
-  if (p.qtyPurchased > p.qtySold * 2 && p.qtyPurchased > 4 && p.soh > 0) {
+  if (p.qtyPurchased > p.qtySold * T.OVER_BOUGHT_FACTOR && p.qtyPurchased > T.OVER_BOUGHT_MIN_QTY && p.soh > 0) {
     const excess = p.qtyPurchased - p.qtySold;
     const tied = p.soh * p.cost;
     push({
@@ -394,7 +398,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
       action: `Review order quantities. Consider reducing to match actual demand. ${fmtAUD(tied)} tied up in excess stock.`,
     });
   }
-  if (p.qtyPurchased < p.qtySold && p.soh === 0 && p.qtySold > 2) {
+  if (p.qtyPurchased < p.qtySold && p.soh === 0 && p.qtySold > T.UNDER_BOUGHT_MIN_QTY_SOLD) {
     const shortfall = p.qtySold - p.qtyPurchased;
     const suggested = Math.ceil(shortfall * 1.2);
     push({
@@ -416,7 +420,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
     p.lastSold !== null &&
     p.daysSincePurchased !== null &&
     p.daysSinceSold !== null &&
-    p.daysSincePurchased > p.daysSinceSold + 90
+    p.daysSincePurchased > p.daysSinceSold + T.REACTIVE_ORDER_GAP_DAYS
   ) {
     push({
       ruleId: "4.3",
@@ -435,11 +439,11 @@ function evaluate(p: Product, periodDays: number): Flag[] {
 
   // ===== Category 5 =====
   if (
-    p.salesGP > 100 &&
-    p.marginPct > 35 &&
-    p.qtySold > 5 &&
+    p.salesGP > T.STAR_MIN_GP &&
+    p.marginPct > T.STAR_MIN_MARGIN_PCT &&
+    p.qtySold > T.STAR_MIN_QTY_SOLD &&
     p.daysSinceSold !== null &&
-    p.daysSinceSold < 45
+    p.daysSinceSold < T.STAR_MAX_DAYS_SINCE_SOLD
   ) {
     push({
       ruleId: "5.1",
@@ -456,7 +460,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
       action: "Protect range position. Ensure consistent stock. Consider expanding to related products.",
     });
   }
-  if (p.marginPct > 50 && p.qtySold > 0) {
+  if (p.marginPct > T.HIGH_MARGIN_MIN_PCT && p.qtySold > 0) {
     push({
       ruleId: "5.2",
       category: 5,
@@ -472,7 +476,7 @@ function evaluate(p: Product, periodDays: number): Flag[] {
       action: "Prioritise placement and staff recommendation. High-value contributor.",
     });
   }
-  if (p.qtySold >= 15) {
+  if (p.qtySold >= T.FAST_MOVER_MIN_QTY) {
     push({
       ruleId: "5.3",
       category: 5,

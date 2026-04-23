@@ -4,6 +4,7 @@
 
 import type { Product, ProductAnalysis } from "./fos-analyzer";
 import { fmtAUD, fmtPct } from "./fos-analyzer";
+import { getThresholds } from "@/config/analysisConfig";
 
 // ─── Cleaned product (extends Product with derived fields) ────────────────
 export type CleanedProduct = Product & {
@@ -192,6 +193,7 @@ export type ProfitEngineResult = {
 };
 
 export function buildProfitEngine(data: CleanedProduct[]): ProfitEngineResult {
+  const T = getThresholds();
   // Exclude negative SOH from totals (per spec)
   const positive = data.filter((p) => p.soh >= 0);
   const totalGp = positive.reduce((s, p) => s + p.salesGP, 0);
@@ -206,10 +208,10 @@ export function buildProfitEngine(data: CleanedProduct[]): ProfitEngineResult {
 
   const starsAtRisk = positive.filter(
     (p) =>
-      p.marginPct > 35 &&
+      p.marginPct > T.STAR_MIN_MARGIN_PCT &&
       p.salesVal > 1000 &&
       p.daysOfStockLeft !== null &&
-      p.daysOfStockLeft < 60,
+      p.daysOfStockLeft < T.STOCKOUT_MAX_DAYS_SINCE_SOLD,
   );
 
   return { top20, top20GpSum, totalGp, top20GpPct, starsAtRisk };
@@ -273,23 +275,24 @@ export type CapitalReleaseResult = {
 };
 
 export function buildCapitalRelease(data: CleanedProduct[]): CapitalReleaseResult {
+  const T = getThresholds();
   const matches = data.filter(
     (p) =>
       p.soh > 0 &&
-      ((p.daysSinceSold !== null && p.daysSinceSold > 180) || p.salesVal === 0),
+      ((p.daysSinceSold !== null && p.daysSinceSold > T.CAPITAL_RELEASE_MIN_DAYS_SINCE_SOLD) || p.salesVal === 0),
   );
   matches.sort((a, b) => b.stockValue - a.stockValue);
 
   const rows: CapitalReleaseRow[] = matches.map((p) => {
     let suggestedAction: string;
-    if (p.salesVal === 0 || (p.daysSinceSold !== null && p.daysSinceSold > 365)) {
+    if (p.salesVal === 0 || (p.daysSinceSold !== null && p.daysSinceSold > T.STALE_SOLD_DAYS)) {
       suggestedAction = "Return to supplier or donate";
     } else {
       suggestedAction = "Markdown 20% — move to clearance shelf";
     }
     let priority: CapitalReleaseRow["priority"] = "low";
-    if (p.stockValue > 200) priority = "high";
-    else if (p.stockValue >= 100) priority = "medium";
+    if (p.stockValue > T.CAPITAL_RELEASE_HIGH_PRIORITY_THRESHOLD) priority = "high";
+    else if (p.stockValue >= T.CAPITAL_RELEASE_MEDIUM_PRIORITY_THRESHOLD) priority = "medium";
     return { product: p, suggestedAction, priority };
   });
 
@@ -318,6 +321,7 @@ export function buildActionCard(
   negativeSOHLines: CleanedProduct[],
   profitEngine: ProfitEngineResult,
 ): ActionRow[] {
+  const T = getThresholds();
   const out: ActionRow[] = [];
   const top20Set = new Set(profitEngine.top20.map((r) => r.product.pde || r.product.stockName));
 
@@ -339,7 +343,7 @@ export function buildActionCard(
       priorityColor: "red",
       product: p,
       why: `Selling ${fmtAUD(loss)} below WS1 cost (sell ${fmtAUD(p.sellPrice)} vs WS1 ${fmtAUD(p.ws1Cost)})`,
-      doThis: `Update sell price to ${fmtAUD(round05(p.ws1Cost * 1.35))} in Z Office`,
+      doThis: `Update sell price to ${fmtAUD(round05(p.ws1Cost * T.ACTION_CARD_PRICE_FIX_SELL_PRICE_FACTOR))} in Z Office`,
     });
   }
 
@@ -347,15 +351,15 @@ export function buildActionCard(
   const reorderCandidates = cleanedData
     .filter(
       (p) =>
-        (top20Set.has(p.pde || p.stockName) || (p.marginPct > 35 && p.salesVal > 1000)) &&
+        (top20Set.has(p.pde || p.stockName) || (p.marginPct > T.STAR_MIN_MARGIN_PCT && p.salesVal > 1000)) &&
         p.daysOfStockLeft !== null &&
-        p.daysOfStockLeft < 30,
+        p.daysOfStockLeft < T.ACTION_CARD_REORDER_MIN_STOCKOUT_DAYS,
     )
     .sort((a, b) => b.salesGP - a.salesGP)
     .slice(0, 5);
   for (const p of reorderCandidates) {
     const dailyRate = p.qtySold > 0 ? p.qtySold / 365 : 0;
-    const orderQty = Math.max(1, Math.ceil(30 * dailyRate));
+    const orderQty = Math.max(1, Math.ceil(T.ACTION_CARD_REORDER_DAILY_SALES_MULTIPLIER * dailyRate));
     out.push({
       bucket: "REORDER NOW",
       priorityColor: "red",
@@ -369,8 +373,8 @@ export function buildActionCard(
   const clearCandidates = cleanedData
     .filter(
       (p) =>
-        p.stockValue > 100 &&
-        ((p.daysSinceSold !== null && p.daysSinceSold > 365) || p.salesVal === 0) &&
+        p.stockValue > T.ACTION_CARD_CLEAR_STOCK_MIN_VALUE &&
+        ((p.daysSinceSold !== null && p.daysSinceSold > T.STALE_SOLD_DAYS) || p.salesVal === 0) &&
         p.soh > 0,
     )
     .sort((a, b) => b.stockValue - a.stockValue)
@@ -381,7 +385,7 @@ export function buildActionCard(
       priorityColor: "orange",
       product: p,
       why: `${fmtAUD(p.stockValue)} tied up · ${p.daysSinceSold === null ? "never sold" : `${p.daysSinceSold}d since sale`}`,
-      doThis: `Move to clearance shelf — mark down to ${fmtAUD(round05(p.cost * 1.1))}`,
+      doThis: `Move to clearance shelf — mark down to ${fmtAUD(round05(p.cost * T.ACTION_CARD_CLEAR_STOCK_MARKDOWN_FACTOR))}`,
     });
   }
 
@@ -568,6 +572,7 @@ export function buildSeasonalIntel(
   data: CleanedProduct[],
   today: Date = new Date(),
 ): SeasonalIntel {
+  const T = getThresholds();
   const season = currentSeasonKey(today);
   const cats = SEASONAL_CALENDAR[season];
   const categories: SeasonalCategoryStatus[] = cats.map((cat) => {
@@ -577,7 +582,7 @@ export function buildSeasonalIntel(
     if (matched.length === 0) status = "CHECK RANGE";
     else {
       const anyLow = matched.some(
-        (p) => p.daysOfStockLeft !== null && p.daysOfStockLeft < 30,
+        (p) => p.daysOfStockLeft !== null && p.daysOfStockLeft < T.ACTION_CARD_REORDER_MIN_STOCKOUT_DAYS,
       );
       const allHigh = matched.every(
         (p) => p.daysOfStockLeft === null || p.daysOfStockLeft > 60,

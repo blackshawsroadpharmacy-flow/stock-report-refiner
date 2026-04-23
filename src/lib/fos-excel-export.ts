@@ -2,6 +2,7 @@
 // from cleaned FOS rows using xlsx-js-style.
 
 import * as XLSX from "xlsx-js-style";
+import { scoreProduct, bandForScore, BAND_COLORS } from "./scoringEngine";
 import { rowToProduct, type Product } from "./fos-analyzer";
 
 // ---------- Colour palette ----------
@@ -111,7 +112,7 @@ type Derived = {
   isLowStock: boolean;
   flags: string[];
   score: number;
-  scoreLabel: "Healthy" | "Monitor" | "Action Required" | "URGENT";
+  scoreLabel: import("./scoringEngine").ScoreBand;
   scoreFill: string;
   rowFill: string;
   recommendation: string;
@@ -163,41 +164,9 @@ function deriveProduct(p: Product, periodDays: number): Derived {
   const gpPerUnit = p.qtySold > 0 ? p.salesGP / p.qtySold : null;
   const costVsAvgPct = p.avgCost > 0 ? ((p.cost - p.avgCost) / p.avgCost) * 100 : null;
 
-  // Score
-  let score = 100;
-  if (isBelowWholesale) score -= 30;
-  if (isLowMargin) score -= 20;
-  if (isStockout) score -= 15;
-  if (isNeverSold) score -= 15;
-  if ((p.daysSinceSold ?? 0) > 180) score -= 10;
-  if (isCostCreep) score -= 10;
-  if (isGhostStock) score -= 10;
-  if (isOverBought) score -= 5;
-  if (p.marginPct > 45) score += 10;
-  if (isFastMover) score += 10;
-  if (p.salesGP > 200) score += 5;
-  score = Math.max(0, Math.min(100, score));
-
-  let scoreLabel: Derived["scoreLabel"];
-  let scoreFill: string;
-  let rowFill: string;
-  if (score >= 80) {
-    scoreLabel = "Healthy";
-    scoreFill = C.green;
-    rowFill = C.greenLight;
-  } else if (score >= 60) {
-    scoreLabel = "Monitor";
-    scoreFill = C.yellow;
-    rowFill = C.yellowLight;
-  } else if (score >= 40) {
-    scoreLabel = "Action Required";
-    scoreFill = C.orange;
-    rowFill = C.orangeLight;
-  } else {
-    scoreLabel = "URGENT";
-    scoreFill = C.crimson;
-    rowFill = C.redLight;
-  }
+  // Score: single source of truth
+  const { score, band } = scoreProduct(p);
+  const { scoreFill, rowFill } = BAND_COLORS[band];
 
   const flags: string[] = [];
   if (isBelowWholesale) flags.push("BELOW WHOLESALE");
@@ -279,7 +248,7 @@ function deriveProduct(p: Product, periodDays: number): Derived {
     isLowStock,
     flags,
     score,
-    scoreLabel,
+    scoreLabel: band,
     scoreFill,
     rowFill,
     recommendation,
