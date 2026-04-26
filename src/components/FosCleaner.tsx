@@ -171,6 +171,12 @@ export function FosCleaner() {
     setExportingExcel(false);
     setExcelToast(null);
     if (inputRef.current) inputRef.current.value = "";
+    try {
+      localStorage.removeItem(STORAGE_KEY_FILE);
+      localStorage.removeItem(STORAGE_KEY_ANALYSIS_FLAG);
+    } catch {
+      // ignore
+    }
   };
 
   const onDownload = () => {
@@ -190,6 +196,11 @@ export function FosCleaner() {
     const result = analyze(status.result.rows);
     setAnalysis(result);
     setAnalysing(false);
+    try {
+      localStorage.setItem(STORAGE_KEY_ANALYSIS_FLAG, "1");
+    } catch {
+      // ignore
+    }
   };
 
   const onDownloadAnalysisExcel = async () => {
