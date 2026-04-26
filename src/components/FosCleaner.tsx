@@ -22,6 +22,41 @@ const ANALYSIS_STEPS = [
   "Scoring products…",
 ];
 
+const STORAGE_KEY_FILE = "fos-cleaner:file-v1";
+const STORAGE_KEY_ANALYSIS_FLAG = "fos-cleaner:has-analysis-v1";
+
+type StoredFile = {
+  filename: string;
+  base64: string;
+};
+
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(
+      null,
+      bytes.subarray(i, i + chunk) as unknown as number[],
+    );
+  }
+  return btoa(binary);
+}
+
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function base64ToFile(stored: StoredFile): File {
+  const buf = base64ToArrayBuffer(stored.base64);
+  return new File([buf], stored.filename, {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
 export function FosCleaner() {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [dragActive, setDragActive] = useState(false);
