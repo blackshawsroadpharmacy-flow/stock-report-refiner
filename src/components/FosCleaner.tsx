@@ -74,18 +74,75 @@ export function FosCleaner() {
     }
   }, [analysis]);
 
+  // Restore last uploaded file (and re-run analysis if it was previously generated)
+  // so a hard refresh of the preview doesn't blank the UI.
+  useEffect(() => {
+    let cancelled = false;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_FILE);
+      if (!raw) return;
+      const stored = JSON.parse(raw) as StoredFile;
+      if (!stored?.base64 || !stored?.filename) return;
+      const file = base64ToFile(stored);
+      setStatus({ kind: "loading", filename: file.name });
+      processFosFile(file).then((result) => {
+        if (cancelled) return;
+        if (!result.ok) {
+          setStatus({ kind: "error", message: result.error });
+          return;
+        }
+        setStatus({ kind: "success", filename: file.name, result });
+        if (localStorage.getItem(STORAGE_KEY_ANALYSIS_FLAG) === "1") {
+          try {
+            setAnalysis(analyze(result.rows));
+          } catch {
+            // ignore — user can re-run manually
+          }
+        }
+      });
+    } catch {
+      // corrupt entry — clear it
+      try {
+        localStorage.removeItem(STORAGE_KEY_FILE);
+        localStorage.removeItem(STORAGE_KEY_ANALYSIS_FLAG);
+      } catch {
+        // ignore
+      }
+    }
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleFile = useCallback(async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".xlsx")) {
       setStatus({ kind: "error", message: "Please upload a .xlsx file." });
       return;
     }
     setStatus({ kind: "loading", filename: file.name });
-    const result = await processFosFile(file);
+    // Read the file once so we can both process AND persist the same bytes.
+    const buf = await file.arrayBuffer();
+    const result = await processFosFile(
+      new File([buf], file.name, { type: file.type }),
+    );
     if (!result.ok) {
       setStatus({ kind: "error", message: result.error });
       return;
     }
     setStatus({ kind: "success", filename: file.name, result });
+    // Persist the raw bytes so we can restore on refresh.
+    try {
+      const stored: StoredFile = {
+        filename: file.name,
+        base64: arrayBufferToBase64(buf),
+      };
+      localStorage.setItem(STORAGE_KEY_FILE, JSON.stringify(stored));
+      // New file invalidates any previously persisted analysis flag.
+      localStorage.removeItem(STORAGE_KEY_ANALYSIS_FLAG);
+    } catch {
+      // Quota exceeded or storage disabled — non-fatal, just don't persist.
+    }
   }, []);
 
   const onDrop = useCallback(
