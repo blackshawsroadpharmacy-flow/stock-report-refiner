@@ -42,60 +42,31 @@ function isServiceLine(p: Product): boolean {
   return SERVICE_NAME_PATTERNS.some((pat) => upper.includes(pat));
 }
 
+const FLAG_LABEL_MAP: Record<string, string> = {
+  "1.1": "BELOW WHOLESALE",
+  "1.2": "LOW MARGIN <20%",
+  "1.3": "COST CREEP",
+  "2.1": "DEAD STOCK",
+  "2.3": "GHOST STOCK",
+  "2.4": "STALE >365d",
+  "3.1": "STOCKOUT",
+  "3.2": "LOW STOCK",
+  "3.3": "STOCKOUT",
+  "4.1": "OVER-BOUGHT",
+  "4.2": "UNDER-BOUGHT",
+  "5.1": "★ STAR",
+  "5.2": "◆ HIGH MARGIN",
+  "5.3": "⚡ FAST MOVER",
+  "6.1": "BELOW COST",
+  "6.2": "NO SELL PRICE",
+  "6.3": "NO COST DATA",
+};
+
 function flagLabelsForProduct(pa: ProductAnalysis): string[] {
   const labels = new Set<string>();
   for (const f of pa.flags) {
-    switch (f.ruleId) {
-      case "1.1":
-        labels.add("BELOW WHOLESALE");
-        break;
-      case "1.2":
-        labels.add("LOW MARGIN <20%");
-        break;
-      case "1.3":
-        labels.add("COST CREEP");
-        break;
-      case "2.1":
-        labels.add("DEAD STOCK");
-        break;
-      case "2.3":
-        labels.add("GHOST STOCK");
-        break;
-      case "2.4":
-        labels.add("STALE >365d");
-        break;
-      case "3.1":
-      case "3.3":
-        labels.add("STOCKOUT");
-        break;
-      case "3.2":
-        labels.add("LOW STOCK");
-        break;
-      case "4.1":
-        labels.add("OVER-BOUGHT");
-        break;
-      case "4.2":
-        labels.add("UNDER-BOUGHT");
-        break;
-      case "5.1":
-        labels.add("★ STAR");
-        break;
-      case "5.2":
-        labels.add("◆ HIGH MARGIN");
-        break;
-      case "5.3":
-        labels.add("⚡ FAST MOVER");
-        break;
-      case "6.1":
-        labels.add("BELOW COST");
-        break;
-      case "6.2":
-        labels.add("NO SELL PRICE");
-        break;
-      case "6.3":
-        labels.add("NO COST DATA");
-        break;
-    }
+    const label = FLAG_LABEL_MAP[f.ruleId];
+    if (label) labels.add(label);
   }
   return Array.from(labels);
 }
