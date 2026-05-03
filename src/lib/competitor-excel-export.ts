@@ -403,13 +403,13 @@ export async function exportCompetitorPricingXlsx(
     const deltaPct = comp > 0 && our > 0 ? (our - comp) / comp : "";
     vRows.push([
       c?.stockName ?? "",
-      c?.apn ?? "",
+      normalizeBarcode(c?.apn ?? ""),
       our || "",
       METHOD[l.match_method] ?? l.match_method,
       l.confidence ?? "",
       l.vendor ?? "",
       l.competitor_product_name ?? "",
-      l.pde ?? "",
+      normalizeBarcode(l.pde ?? ""),
       l.variant ?? "",
       comp || "",
       l.rrp ?? "",
