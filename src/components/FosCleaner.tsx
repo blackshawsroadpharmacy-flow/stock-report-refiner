@@ -23,13 +23,6 @@ type Status =
   | { kind: "success"; filename: string; result: ProcessResult }
   | { kind: "error"; message: string };
 
-const ANALYSIS_STEPS = [
-  "Parsing product data…",
-  "Analysing pricing integrity…",
-  "Checking stockouts & dead stock…",
-  "Scoring products…",
-];
-
 const STORAGE_KEY_ANALYSIS_FLAG = "fos-cleaner:has-analysis-v1";
 
 export function FosCleaner() {
@@ -37,7 +30,6 @@ export function FosCleaner() {
   const [dragActive, setDragActive] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [analysing, setAnalysing] = useState(false);
-  const [analysisStep, setAnalysisStep] = useState(0);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [excelToast, setExcelToast] = useState<string | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
@@ -129,7 +121,6 @@ export function FosCleaner() {
     setStatus({ kind: "idle" });
     setAnalysis(null);
     setAnalysing(false);
-    setAnalysisStep(0);
     setExportingExcel(false);
     setExcelToast(null);
     setRestoreError(null);
@@ -150,11 +141,8 @@ export function FosCleaner() {
   const onRunAnalysis = async () => {
     if (status.kind !== "success") return;
     setAnalysing(true);
-    setAnalysisStep(0);
-    for (let i = 0; i < ANALYSIS_STEPS.length; i++) {
-      setAnalysisStep(i);
-      await new Promise((r) => setTimeout(r, 350));
-    }
+    // Yield to browser so the spinner paints before the synchronous analyze() blocks
+    await new Promise((r) => requestAnimationFrame(r));
     const result = analyze(status.result.rows);
     setAnalysis(result);
     setAnalysing(false);
@@ -357,7 +345,7 @@ export function FosCleaner() {
           {analysing && (
             <div className="mt-4 flex items-center gap-3 rounded-md bg-muted px-4 py-3 text-sm text-muted-foreground">
               <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              {ANALYSIS_STEPS[analysisStep]}
+              Analysing…
             </div>
           )}
 
