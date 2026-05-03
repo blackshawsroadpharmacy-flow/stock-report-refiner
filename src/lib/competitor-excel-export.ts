@@ -180,34 +180,112 @@ export function exportCompetitorPricingXlsx(
   const totalProducts = products.length;
   const avgDelta = matched ? sumDelta / matched : 0;
   const avgGap = matched ? sumGap / matched : 0;
+  const matchRate = totalProducts ? matched / totalProducts : 0;
+  const unmatchedRate = totalProducts ? unmatched / totalProducts : 0;
+  const lowConfRate = totalProducts ? lowConfidence / totalProducts : 0;
+  const noApnRate = totalProducts ? noApn / totalProducts : 0;
+
+  type Cell = { v: any; fmt?: string };
+  const SECTION = "__SECTION__";
+  const BLANK = "__BLANK__";
+
   const summary: any[][] = [
     ["Competitor Pricing — Summary"],
     [],
     ["Generated", new Date().toLocaleString()],
-    ["Min confidence threshold", minConfidence],
+    ["Min confidence threshold", { v: minConfidence, fmt: pct1 } as Cell],
     [],
+    [SECTION, "Match overview"],
     ["Total products in report", totalProducts],
     ["Matched (≥ threshold)", matched],
-    ["Match rate", totalProducts ? matched / totalProducts : 0],
+    ["Match rate", { v: matchRate, fmt: pct1 } as Cell],
     [],
+    [SECTION, "Match method breakdown"],
+    ["Matched by APN (barcode)", byPde],
+    ["Matched by exact name", byNameExact],
+    ["Matched by fuzzy name", byNameFuzzy],
+    [],
+    [SECTION, "Market position (matched only)"],
     ["Above market (>+2%)", above],
     ["At market (±2%)", atMkt],
     ["Below market (<-2%)", below],
+    ["Avg price vs market", { v: avgDelta, fmt: pct1 } as Cell],
+    ["Avg margin gap (pp)", { v: avgGap, fmt: num2 } as Cell],
     [],
-    ["Avg price vs market", avgDelta],
-    ["Avg margin gap (pp)", avgGap],
+    [SECTION, "🔧 Troubleshooting — why products aren't matched"],
+    ["No competitor match found", unmatched],
+    ["  as % of products", { v: unmatchedRate, fmt: pct1 } as Cell],
+    [`Low-confidence matches (< ${Math.round(minConfidence * 100)}%)`, lowConfidence],
+    ["  as % of products", { v: lowConfRate, fmt: pct1 } as Cell],
     [],
-    ["Notes"],
+    [SECTION, "Source data quality"],
+    ["Products with no APN/barcode", noApn],
+    ["  as % of products", { v: noApnRate, fmt: pct1 } as Cell],
+    ["Products with blank stock name", noName],
+    ["Products with no sell price", noSellPrice],
+    ["Products with no cost (WS1/Avg)", noCost],
+    [],
+    [SECTION, "How to improve match rates"],
+    ["• Populate APN/barcode in Z Office — APN matches are 100% confidence."],
+    ["• Standardise stock names (strength, pack size, brand spelling)."],
+    ["• Lower the min-confidence threshold to surface more fuzzy matches."],
+    ["• Note: source competitor file has scientific-notation corruption in barcodes,"],
+    ["  so most matches fall back to fuzzy name similarity."],
+    [],
+    [SECTION, "Examples — unmatched products"],
+    ...(unmatchedExamples.length ? unmatchedExamples.map((n) => [`  • ${n}`]) : [["  (none)"]]),
+    [],
+    [SECTION, "Examples — low-confidence matches"],
+    ...(lowConfExamples.length ? lowConfExamples.map((n) => [`  • ${n}`]) : [["  (none)"]]),
+    [],
+    [SECTION, "Notes"],
     ["Competitor margin estimated using your wholesale cost (WS1, fallback Avg) as a proxy."],
     ["Match methods: APN = exact barcode, Exact name = normalized exact, Fuzzy = trigram similarity."],
   ];
-  const ws2 = XLSX.utils.aoa_to_sheet(summary);
-  ws2["A1"].s = { font: { bold: true, sz: 14, color: { rgb: C.white } }, fill: { patternType: "solid", fgColor: { rgb: C.navy } } };
-  ws2["!cols"] = [{ wch: 32 }, { wch: 22 }];
-  ws2["B4"] && (ws2["B4"].z = pct1);
-  ws2["B8"] && (ws2["B8"].z = pct1);
-  ws2["B14"] && (ws2["B14"].z = pct1);
-  ws2["B15"] && (ws2["B15"].z = num2);
+
+  // Materialise the sheet, expanding {v,fmt} cells and SECTION rows
+  const flatRows: any[][] = summary.map((r) =>
+    r.map((c) => {
+      if (c && typeof c === "object" && "v" in c) return c.v;
+      if (c === SECTION) return null;
+      return c;
+    }),
+  );
+  const ws2 = XLSX.utils.aoa_to_sheet(flatRows);
+
+  // Title
+  if (ws2["A1"]) {
+    ws2["A1"].s = {
+      font: { bold: true, sz: 14, color: { rgb: C.white } },
+      fill: { patternType: "solid", fgColor: { rgb: C.navy } },
+    };
+  }
+
+  // Apply per-cell formatting and section styling
+  for (let r = 0; r < summary.length; r++) {
+    const row = summary[r];
+    for (let c = 0; c < row.length; c++) {
+      const raw = row[c];
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (raw === SECTION) {
+        // Section header lives in column B (c=1); style col A+B as a banner
+        const refA = XLSX.utils.encode_cell({ r, c: 0 });
+        const refB = XLSX.utils.encode_cell({ r, c: 1 });
+        const banner = {
+          font: { bold: true, color: { rgb: C.white } },
+          fill: { patternType: "solid", fgColor: { rgb: C.navy } },
+        };
+        if (ws2[refA]) ws2[refA].s = banner;
+        if (ws2[refB]) ws2[refB].s = banner;
+        continue;
+      }
+      if (raw && typeof raw === "object" && "fmt" in raw && ws2[ref]) {
+        ws2[ref].z = raw.fmt;
+      }
+    }
+  }
+
+  ws2["!cols"] = [{ wch: 42 }, { wch: 38 }];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws2, "Summary");
