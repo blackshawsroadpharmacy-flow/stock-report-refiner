@@ -1,0 +1,1 @@
+TRUNCATE TABLE public.competitor_prices RESTART IDENTITY;
