@@ -151,7 +151,7 @@ export async function exportCompetitorPricingXlsx(
 
     if (!m || m.confidence < minConfidence) {
       rows.push([
-        p.stockName, p.apn, (p as any).department ?? "", p.soh,
+        p.stockName, normalizeBarcode(p.apn), (p as any).department ?? "", p.soh,
         our || "", cost || "", ourMargin || "",
         m ? METHOD[m.match_method] : "No match",
         m ? m.confidence : "",
