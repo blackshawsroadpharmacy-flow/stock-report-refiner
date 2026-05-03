@@ -213,6 +213,14 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={() => exportCompetitorPricingCsv(products, comp.matches, minConfidence, "deeper_dive")}
+                    className="gap-1"
+                  >
+                    <Download className="h-4 w-4" /> Export CSV
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => exportCompetitorPricingXlsx(products, comp.matches, minConfidence, "deeper_dive")}
                     className="gap-1"
                   >
