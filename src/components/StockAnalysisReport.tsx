@@ -9,6 +9,7 @@ import {
 } from "@/lib/fos-analyzer";
 import { DeeperDiveModal } from "./deeper-dive/DeeperDiveModal";
 import { useCompetitorPricing, productKey } from "@/hooks/useCompetitorPricing";
+import { CONFIDENCE_OPTIONS, useConfidenceThreshold } from "@/hooks/useConfidenceThreshold";
 
 // All styles live in this string so the downloaded HTML is fully self-contained.
 export const REPORT_CSS = `
