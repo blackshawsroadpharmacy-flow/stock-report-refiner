@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx-js-style";
+import { normalizeBarcode, forceTextColumns } from "./barcode-utils";
 
 export const HEADERS = [
   "Stock Name",
@@ -52,10 +53,13 @@ export async function processFosFile(file: File): Promise<ProcessResult | Proces
     const sheetName = wb.SheetNames[0];
     if (!sheetName) return { ok: false, error: "Workbook has no sheets." };
     const ws = wb.Sheets[sheetName];
+    // raw:true preserves full numeric precision for barcodes (column C, APN)
+    // and PDE (column D). Without it, large barcodes arrive as scientific
+    // notation strings ("9.89E+12") which breaks competitor matching.
+    // Dates are handled by cellDates:true and downstream parseDate().
     const rawRows: any[][] = XLSX.utils.sheet_to_json(ws, {
       header: 1,
-      raw: false,
-      dateNF: "dd/mm/yyyy",
+      raw: true,
       blankrows: true,
       defval: null,
     });
@@ -81,7 +85,7 @@ export async function processFosFile(file: File): Promise<ProcessResult | Proces
       };
     }
     const apnCell = firstRow[2];
-    const apnStr = apnCell == null ? "" : String(apnCell);
+    const apnStr = normalizeBarcode(apnCell);
     if (!/\d/.test(apnStr)) {
       return {
         ok: false,
@@ -89,11 +93,14 @@ export async function processFosFile(file: File): Promise<ProcessResult | Proces
       };
     }
 
-    // Normalize each row to 22 columns
+    // Normalize each row to 22 columns and coerce APN/PDE to clean text strings
     const normalized = dataRows.map((row) => {
       const r = Array.isArray(row) ? [...row] : [];
       while (r.length < HEADERS.length) r.push(null);
-      return r.slice(0, HEADERS.length);
+      const out = r.slice(0, HEADERS.length);
+      out[2] = normalizeBarcode(out[2]); // APN
+      out[3] = normalizeBarcode(out[3]); // PDE / SKU
+      return out;
     });
 
     const outputData = [HEADERS, ...normalized];
@@ -147,6 +154,10 @@ export async function processFosFile(file: File): Promise<ProcessResult | Proces
 
     // Header row height
     newWs["!rows"] = [{ hpt: 28 }];
+
+    // Force APN (col 2) and PDE (col 3) to be stored as text so Excel does
+    // not coerce 13-digit barcodes into scientific notation.
+    forceTextColumns(newWs, [2, 3], 1, lastRow - 1);
 
     const outWb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(outWb, newWs, "Stock Report");

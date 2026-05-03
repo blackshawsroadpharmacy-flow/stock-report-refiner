@@ -2,6 +2,7 @@
 // Pure functions — no DOM, no React. Safe to test in isolation.
 
 import { getThresholds } from "@/config/analysisConfig";
+import { normalizeBarcode } from "./barcode-utils";
 
 export type Product = {
   stockName: string;
@@ -143,8 +144,8 @@ export function rowToProduct(row: any[], today: Date): Product {
   return {
     stockName: str(row[0]),
     fullName: str(row[1]),
-    apn: str(row[2]),
-    pde: str(row[3]),
+    apn: normalizeBarcode(row[2]),
+    pde: normalizeBarcode(row[3]),
     soh: num(row[4]),
     stockValue: num(row[5]),
     lastPurchased,

@@ -4,6 +4,7 @@
 import * as XLSX from "xlsx-js-style";
 import { scoreProduct, bandForScore, BAND_COLORS } from "./scoringEngine";
 import { rowToProduct, type Product } from "./fos-analyzer";
+import { forceTextColumns } from "./barcode-utils";
 
 // ---------- Colour palette ----------
 const C = {
@@ -662,6 +663,9 @@ function buildScorecardSheet(derived: Derived[]) {
   ws["!freeze"] = { xSplit: 0, ySplit: 1 } as any;
   ws["!views"] = [{ state: "frozen", ySplit: 1 }] as any;
 
+  // APN column (index 3) must be stored as text — barcodes only.
+  forceTextColumns(ws, [3], 1, sorted.length);
+
   return ws;
 }
 
@@ -876,6 +880,8 @@ function buildFlagsSheet(derived: Derived[]) {
   ws["!autofilter"] = { ref: `A4:${XLSX.utils.encode_col(HDRS.length - 1)}4` };
   ws["!freeze"] = { xSplit: 0, ySplit: 4 } as any;
   ws["!views"] = [{ state: "frozen", ySplit: 4 }] as any;
+  // APN column (index 4) — store as text
+  forceTextColumns(ws, [4], 4, 4 + flagRows.length - 1);
   return ws;
 }
 

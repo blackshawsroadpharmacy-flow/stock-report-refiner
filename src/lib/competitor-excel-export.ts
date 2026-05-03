@@ -2,6 +2,7 @@ import * as XLSX from "xlsx-js-style";
 import type { Product, ProductAnalysis } from "./fos-analyzer";
 import { productKey, type CompetitorMap } from "@/hooks/useCompetitorPricing";
 import { supabase } from "@/integrations/supabase/client";
+import { forceTextColumns, normalizeBarcode } from "./barcode-utils";
 
 const C = {
   navy: "10183F",
@@ -150,7 +151,7 @@ export async function exportCompetitorPricingXlsx(
 
     if (!m || m.confidence < minConfidence) {
       rows.push([
-        p.stockName, p.apn, (p as any).department ?? "", p.soh,
+        p.stockName, normalizeBarcode(p.apn), (p as any).department ?? "", p.soh,
         our || "", cost || "", ourMargin || "",
         m ? METHOD[m.match_method] : "No match",
         m ? m.confidence : "",
@@ -184,7 +185,7 @@ export async function exportCompetitorPricingXlsx(
     else atMkt++;
 
     rows.push([
-      p.stockName, p.apn, (p as any).department ?? "", p.soh,
+      p.stockName, normalizeBarcode(p.apn), (p as any).department ?? "", p.soh,
       our, cost, ourMargin,
       METHOD[m.match_method], m.confidence,
       m.match_count, m.vendor_count,
@@ -241,6 +242,8 @@ export async function exportCompetitorPricingXlsx(
   if (rows.length > 1) {
     ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length - 1, c: headers.length - 1 } }) };
   }
+  // APN column (index 1) — text only
+  forceTextColumns(ws, [1], 1, rows.length - 1);
 
   // Summary sheet
   const totalProducts = products.length;
@@ -400,13 +403,13 @@ export async function exportCompetitorPricingXlsx(
     const deltaPct = comp > 0 && our > 0 ? (our - comp) / comp : "";
     vRows.push([
       c?.stockName ?? "",
-      c?.apn ?? "",
+      normalizeBarcode(c?.apn ?? ""),
       our || "",
       METHOD[l.match_method] ?? l.match_method,
       l.confidence ?? "",
       l.vendor ?? "",
       l.competitor_product_name ?? "",
-      l.pde ?? "",
+      normalizeBarcode(l.pde ?? ""),
       l.variant ?? "",
       comp || "",
       l.rrp ?? "",
@@ -454,6 +457,8 @@ export async function exportCompetitorPricingXlsx(
   if (vRows.length > 1) {
     ws3["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: vRows.length - 1, c: vHeaders.length - 1 } }) };
   }
+  // Our APN (col 1) and Competitor PDE (col 7) — text only
+  forceTextColumns(ws3, [1, 7], 1, vRows.length - 1);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws2, "Summary");

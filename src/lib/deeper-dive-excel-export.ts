@@ -13,6 +13,7 @@ import {
   buildStrategicAnalystReport,
   type CleanedProduct,
 } from "./deeperDiveUtils";
+import { forceTextColumns, normalizeBarcode } from "./barcode-utils";
 
 const C = {
   navy: "10183F",
@@ -81,6 +82,15 @@ function buildSheet(title: string, subtitle: string, columns: Col[], rows: any[]
   ws["!cols"] = columns.map((c) => ({ wch: c.width }));
   // Freeze under header (row index 4 in 0-based)
   ws["!freeze"] = { xSplit: 0, ySplit: 4 };
+  // Force any column whose header contains "APN", "PDE", "Barcode" or "SKU"
+  // to be stored as text so Excel cannot mangle it into scientific notation.
+  const textCols: number[] = [];
+  columns.forEach((c, i) => {
+    if (/\b(apn|pde|barcode|sku)\b/i.test(c.header)) textCols.push(i);
+  });
+  if (textCols.length && rows.length) {
+    forceTextColumns(ws, textCols, 4, 4 + rows.length - 1);
+  }
   return ws;
 }
 
@@ -88,7 +98,7 @@ function productCols(): Col[] {
   return [
     { header: "Product", width: 42, get: (p: CleanedProduct) => p.stockName },
     { header: "Dept", width: 20, get: (p: CleanedProduct) => p.dept },
-    { header: "PDE/APN", width: 14, get: (p: CleanedProduct) => p.pde || p.apn || "" },
+    { header: "PDE/APN", width: 18, get: (p: CleanedProduct) => normalizeBarcode(p.pde || p.apn || "") },
     { header: "SOH", width: 8, fmt: int0, get: (p: CleanedProduct) => p.soh },
     { header: "Stock Value", width: 14, fmt: money, get: (p: CleanedProduct) => p.stockValue },
     { header: "Cost", width: 10, fmt: money, get: (p: CleanedProduct) => p.cost },
