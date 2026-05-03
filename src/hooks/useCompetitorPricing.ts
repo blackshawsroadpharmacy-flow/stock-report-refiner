@@ -41,6 +41,7 @@ export type CompetitorState = {
 
 export type CompetitorPricingResult = CompetitorState & {
   cancel: () => void;
+  retry: () => void;
 };
 
 /** Build the canonical row key (must match how the UI looks rows up). */
@@ -66,6 +67,7 @@ const idleState = (): CompetitorState => ({
 
 export function useCompetitorPricing(products: Product[] | null): CompetitorPricingResult {
   const [state, setState] = useState<CompetitorState>(idleState);
+  const [retrySeq, setRetrySeq] = useState(0);
   const cancelRef = useRef<{ cancelled: boolean } | null>(null);
 
   const cancel = useCallback(() => {
@@ -75,6 +77,11 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
         ? { ...s, status: "cancelled" }
         : s,
     );
+  }, []);
+
+  const retry = useCallback(() => {
+    if (cancelRef.current) cancelRef.current.cancelled = true;
+    setRetrySeq((seq) => seq + 1);
   }, []);
 
   useEffect(() => {
@@ -97,8 +104,8 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
           name: p.stockName || "",
         }));
 
-        const CHUNK = 300;
-        const CONCURRENCY = 5;
+        const CHUNK = 100;
+        const CONCURRENCY = 3;
         const matches: CompetitorMap = {};
         const processedKeys = new Set<string>();
         const methodCounts: MethodBreakdown = { ...EMPTY_METHODS };
@@ -203,8 +210,8 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
     return () => {
       token.cancelled = true;
     };
-  }, [products]);
+  }, [products, retrySeq]);
 
-  return { ...state, cancel };
+  return { ...state, cancel, retry };
 }
 

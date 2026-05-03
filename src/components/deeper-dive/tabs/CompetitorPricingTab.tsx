@@ -202,7 +202,10 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
           {comp.status === "error" && (
             <Alert variant="destructive">
               <AlertTitle>Couldn't load competitor pricing</AlertTitle>
-              <AlertDescription>{comp.error}</AlertDescription>
+              <AlertDescription className="space-y-3">
+                <div>{comp.error}</div>
+                <Button size="sm" variant="outline" onClick={comp.retry}>Retry matching</Button>
+              </AlertDescription>
             </Alert>
           )}
           {(comp.status === "success" || comp.status === "cancelled") && (
