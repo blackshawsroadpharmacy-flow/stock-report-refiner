@@ -623,7 +623,7 @@ export function analyze(rows: any[][]): AnalysisResult {
 
   for (const a of analyses) {
     const p = a.product;
-    stockValue += p.stockValue;
+    stockValue += p.soh * p.cost; // canonical: SOH × unit cost
     salesGP += p.salesGP;
     salesVal += p.salesVal;
     if (p.qtySold === 0) zeroSalesCount++;
