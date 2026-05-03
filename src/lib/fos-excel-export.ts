@@ -663,6 +663,9 @@ function buildScorecardSheet(derived: Derived[]) {
   ws["!freeze"] = { xSplit: 0, ySplit: 1 } as any;
   ws["!views"] = [{ state: "frozen", ySplit: 1 }] as any;
 
+  // APN column (index 3) must be stored as text — barcodes only.
+  forceTextColumns(ws, [3], 1, sorted.length);
+
   return ws;
 }
 
