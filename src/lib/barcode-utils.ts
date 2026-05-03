@@ -80,9 +80,6 @@ export function forceTextColumns(
   startRow = 1,
   endRow?: number,
 ) {
-  // Lazy import to avoid circular deps; xlsx-js-style is already a dep.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const XLSX = require("xlsx-js-style");
   const ref = ws["!ref"];
   if (!ref) return;
   const range = XLSX.utils.decode_range(ref);
