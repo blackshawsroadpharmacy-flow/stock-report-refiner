@@ -139,8 +139,17 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
         </CardHeader>
         <CardContent>
           {comp.status === "loading" && (
-            <div className="text-sm text-muted-foreground">
-              Matching {comp.totalCount} products to the competitor database…
+            <div className="space-y-2">
+              <div className="text-sm text-muted-foreground">
+                Matching {comp.processedCount.toLocaleString()} of {comp.totalCount.toLocaleString()} products to the competitor database…
+                {comp.matchedCount > 0 && (
+                  <span> · {comp.matchedCount.toLocaleString()} matched so far</span>
+                )}
+              </div>
+              <Progress value={comp.totalCount ? (comp.processedCount / comp.totalCount) * 100 : 0} />
+              {rows.length > 0 && (
+                <div className="text-xs text-muted-foreground pt-2">Live preview of matches found so far ({rows.length}). Final stats appear once matching completes.</div>
+              )}
             </div>
           )}
           {comp.status === "error" && (
