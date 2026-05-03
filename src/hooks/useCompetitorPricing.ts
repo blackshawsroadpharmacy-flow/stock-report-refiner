@@ -69,6 +69,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
         const queries = products.map((p, i) => ({
           key: productKey(p, i),
           apn: p.apn || "",
+          pde: p.pde || "",
           name: p.stockName || "",
         }));
 
