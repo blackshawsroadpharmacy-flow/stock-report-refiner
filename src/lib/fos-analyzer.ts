@@ -2,6 +2,7 @@
 // Pure functions — no DOM, no React. Safe to test in isolation.
 
 import { getThresholds } from "@/config/analysisConfig";
+import { normalizeBarcode } from "./barcode-utils";
 
 export type Product = {
   stockName: string;
