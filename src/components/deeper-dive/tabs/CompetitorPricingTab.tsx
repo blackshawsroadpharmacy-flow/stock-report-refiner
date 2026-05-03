@@ -226,7 +226,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                   onChange={(e) => setSearch(e.target.value)}
                   className="max-w-xs"
                 />
-                {(["all","above","below","match"] as const).map((f) => (
+                {(["all","above","below","match","processed","unprocessed"] as const).map((f) => (
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
@@ -237,7 +237,12 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                         : "bg-background hover:bg-muted")
                     }
                   >
-                    {f === "all" ? "All" : f === "above" ? "Above market" : f === "below" ? "Below market" : "At market"}
+                    {f === "all" ? "All"
+                      : f === "above" ? "Above market"
+                      : f === "below" ? "Below market"
+                      : f === "match" ? "At market"
+                      : f === "processed" ? `Processed (${comp.processedCount.toLocaleString()})`
+                      : `Unprocessed (${(comp.totalCount - comp.processedCount).toLocaleString()})`}
                   </button>
                 ))}
                 <div className="ml-auto flex items-center gap-2">
