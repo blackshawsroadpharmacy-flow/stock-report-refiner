@@ -64,6 +64,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      match_competitor_prices: {
+        Args: { queries: Json }
+        Returns: {
+          avg_price: number
+          example_name: string
+          example_vendor: string
+          key: string
+          match_count: number
+          match_method: string
+          max_price: number
+          median_price: number
+          min_price: number
+          vendor_count: number
+        }[]
+      }
+      normalize_product_name: { Args: { s: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
