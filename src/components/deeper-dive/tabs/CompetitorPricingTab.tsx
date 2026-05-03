@@ -162,11 +162,16 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
         <CardContent>
           {comp.status === "loading" && (
             <div className="space-y-2">
-              <div className="text-sm text-muted-foreground">
-                Matching {comp.processedCount.toLocaleString()} of {comp.totalCount.toLocaleString()} products to the competitor database…
-                {comp.matchedCount > 0 && (
-                  <span> · {comp.matchedCount.toLocaleString()} matched so far</span>
-                )}
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-sm text-muted-foreground">
+                  Matching {comp.processedCount.toLocaleString()} of {comp.totalCount.toLocaleString()} products to the competitor database…
+                  {comp.matchedCount > 0 && (
+                    <span> · {comp.matchedCount.toLocaleString()} matched so far</span>
+                  )}
+                </div>
+                <Button size="sm" variant="outline" onClick={comp.cancel} className="gap-1 shrink-0">
+                  <X className="h-4 w-4" /> Cancel matching
+                </Button>
               </div>
               <Progress value={comp.totalCount ? (comp.processedCount / comp.totalCount) * 100 : 0} />
               {rows.length > 0 && (
@@ -174,13 +179,22 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
               )}
             </div>
           )}
+          {comp.status === "cancelled" && (
+            <Alert className="mb-4">
+              <AlertTitle>Matching cancelled</AlertTitle>
+              <AlertDescription>
+                Stopped after processing {comp.processedCount.toLocaleString()} of {comp.totalCount.toLocaleString()} products.
+                Showing {comp.matchedCount.toLocaleString()} partial matches below.
+              </AlertDescription>
+            </Alert>
+          )}
           {comp.status === "error" && (
             <Alert variant="destructive">
               <AlertTitle>Couldn't load competitor pricing</AlertTitle>
               <AlertDescription>{comp.error}</AlertDescription>
             </Alert>
           )}
-          {comp.status === "success" && (
+          {(comp.status === "success" || comp.status === "cancelled") && (
             <>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm mb-4">
                 <Stat
