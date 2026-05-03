@@ -13,6 +13,7 @@ import {
   buildStrategicAnalystReport,
   type CleanedProduct,
 } from "./deeperDiveUtils";
+import { forceTextColumns, normalizeBarcode } from "./barcode-utils";
 
 const C = {
   navy: "10183F",
