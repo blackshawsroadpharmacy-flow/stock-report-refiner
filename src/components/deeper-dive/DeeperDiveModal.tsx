@@ -20,6 +20,9 @@ import { MarketIntelTab } from "./tabs/MarketIntelTab";
 import { ComplianceTab } from "./tabs/ComplianceTab";
 import { StrategicAnalystTab } from "./tabs/StrategicAnalystTab";
 import { CompetitorPricingTab } from "./tabs/CompetitorPricingTab";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { exportDeeperDiveXlsx } from "@/lib/deeper-dive-excel-export";
 
 export function DeeperDiveModal({
   open,
