@@ -1,7 +1,7 @@
 // Rule-based analysis engine for cleaned FOS Stock Report rows.
 // Pure functions — no DOM, no React. Safe to test in isolation.
 
-import { getThresholds } from "@/config/analysisConfig";
+import { getThresholds, Thresholds } from "../config/analysisConfig";
 import { normalizeBarcode } from "./barcode-utils";
 
 export type Product = {
@@ -549,30 +549,30 @@ function evaluate(p: Product, periodDays: number): Flag[] {
   return flags;
 }
 
-function scoreProduct(p: Product): number {
+function scoreProduct(p: Product, T: ReturnType<typeof getThresholds>): number {
   let score = 100;
-  if (p.sellPrice > 0 && p.ws1Cost > 0 && p.sellPrice < p.ws1Cost) score -= 30;
-  if (p.marginPct > 0 && p.marginPct < 20) score -= 20;
+  if (p.sellPrice > 0 && p.ws1Cost > 0 && p.sellPrice < p.ws1Cost) score -= T.SCORE_BELOW_WHOLESALE;
+  if (p.marginPct > 0 && p.marginPct < T.MIN_VIABLE_MARGIN_PCT) score -= T.SCORE_LOW_MARGIN;
   if (
     p.soh === 0 &&
     p.daysSinceSold !== null &&
-    p.daysSinceSold < 60 &&
+    p.daysSinceSold < T.STOCKOUT_MAX_DAYS_SINCE_SOLD &&
     p.qtySold > 0
   )
-    score -= 15;
-  if (p.qtySold === 0 && p.soh > 0) score -= 15;
-  if (p.daysSinceSold !== null && p.daysSinceSold > 180) score -= 10;
-  if (p.cost > 0 && p.avgCost > 0 && p.cost > p.avgCost * 1.05) score -= 10;
-  if (p.marginPct > 45) score += 10;
-  if (p.qtySold > 15) score += 10;
-  if (p.salesGP > 200) score += 5;
+    score -= T.SCORE_STOCKOUT;
+  if (p.qtySold === 0 && p.soh > 0) score -= T.SCORE_DEAD_STOCK;
+  if (p.daysSinceSold !== null && p.daysSinceSold > T.STALE_PENALTY_DAYS) score -= T.SCORE_STALE_180;
+  if (p.cost > 0 && p.avgCost > 0 && p.cost > p.avgCost * T.COST_CREEP_FACTOR) score -= T.SCORE_COST_CREEP;
+  if (p.marginPct > T.HEALTHY_MARGIN_PCT) score += T.SCORE_HIGH_MARGIN_BONUS;
+  if (p.qtySold >= T.FAST_MOVER_MIN_QTY) score += T.SCORE_FAST_MOVER_BONUS;
+  if (p.salesGP > T.STAR_MIN_GP) score += T.SCORE_HIGH_GP_BONUS;
   return Math.max(0, Math.min(100, score));
 }
 
-function bandFor(score: number): ProductAnalysis["scoreBand"] {
-  if (score >= 80) return "Healthy";
-  if (score >= 60) return "Monitor";
-  if (score >= 40) return "Action Required";
+function bandFor(score: number, T: ReturnType<typeof getThresholds>): ProductAnalysis["scoreBand"] {
+  if (score >= T.BAND_HEALTHY_MIN) return "Healthy";
+  if (score >= T.BAND_MONITOR_MIN) return "Monitor";
+  if (score >= T.BAND_ACTION_MIN) return "Action Required";
   return "Urgent";
 }
 
@@ -603,10 +603,12 @@ export function analyze(rows: any[][]): AnalysisResult {
         )
       : 30;
 
+  const T = getThresholds();
+
   const analyses: ProductAnalysis[] = products.map((p) => {
     const flags = evaluate(p, periodDays);
-    const score = scoreProduct(p);
-    return { product: p, flags, score, scoreBand: bandFor(score) };
+    const score = scoreProduct(p, T);
+    return { product: p, flags, score, scoreBand: bandFor(score, T) };
   });
 
   // Totals
@@ -639,7 +641,7 @@ export function analyze(rows: any[][]): AnalysisResult {
   // By category
   const byCategory: Record<number, ProductAnalysis[]> = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
   for (const a of analyses) {
-    const cats = new Set(a.flags.map((f) => f.category));
+    const cats = Array.from(new Set(a.flags.map((f) => f.category)));
     for (const c of cats) byCategory[c].push(a);
   }
   // Sort top performers desc by salesGP
