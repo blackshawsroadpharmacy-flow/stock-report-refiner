@@ -50,6 +50,12 @@ export function exportCompetitorPricingXlsx(
   const rows: any[][] = [headers];
   let matched = 0, above = 0, below = 0, atMkt = 0;
   let sumDelta = 0, sumGap = 0;
+  // Troubleshooting counters
+  let noApn = 0, noName = 0, noSellPrice = 0, noCost = 0;
+  let unmatched = 0, lowConfidence = 0;
+  let byPde = 0, byNameExact = 0, byNameFuzzy = 0;
+  const lowConfExamples: string[] = [];
+  const unmatchedExamples: string[] = [];
 
   for (let idx = 0; idx < products.length; idx++) {
     const pa = products[idx];
@@ -59,6 +65,22 @@ export function exportCompetitorPricingXlsx(
     const our = p.sellPrice;
     const cost = p.ws1Cost > 0 ? p.ws1Cost : p.avgCost;
     const ourMargin = p.marginPct > 0 ? p.marginPct / 100 : (cost > 0 && our > 0 ? (our - cost) / our : 0);
+
+    // Data-quality counters
+    if (!p.apn || !p.apn.trim()) noApn++;
+    if (!p.stockName || !p.stockName.trim()) noName++;
+    if (!our || our <= 0) noSellPrice++;
+    if (!cost || cost <= 0) noCost++;
+
+    if (!m) {
+      unmatched++;
+      if (unmatchedExamples.length < 10 && p.stockName) unmatchedExamples.push(p.stockName);
+    } else if (m.confidence < minConfidence) {
+      lowConfidence++;
+      if (lowConfExamples.length < 10 && p.stockName) {
+        lowConfExamples.push(`${p.stockName} (${Math.round(m.confidence * 100)}%)`);
+      }
+    }
 
     if (!m || m.confidence < minConfidence) {
       rows.push([
@@ -74,6 +96,10 @@ export function exportCompetitorPricingXlsx(
     }
 
     matched++;
+    if (m.match_method === "pde") byPde++;
+    else if (m.match_method === "name_exact") byNameExact++;
+    else if (m.match_method === "name_fuzzy") byNameFuzzy++;
+
     const compMargin = cost > 0 && m.avg_price > 0 ? (m.avg_price - cost) / m.avg_price : 0;
     const priceDelta = our - m.avg_price;
     const priceDeltaPct = m.avg_price > 0 ? priceDelta / m.avg_price : 0;
