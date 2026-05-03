@@ -2,6 +2,7 @@ import * as XLSX from "xlsx-js-style";
 import type { Product, ProductAnalysis } from "./fos-analyzer";
 import { productKey, type CompetitorMap } from "@/hooks/useCompetitorPricing";
 import { supabase } from "@/integrations/supabase/client";
+import { forceTextColumns, normalizeBarcode } from "./barcode-utils";
 
 const C = {
   navy: "10183F",
