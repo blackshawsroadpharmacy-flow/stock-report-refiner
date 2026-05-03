@@ -1,8 +1,11 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Download } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -17,6 +20,7 @@ import {
   CONFIDENCE_OPTIONS,
   useConfidenceThreshold,
 } from "@/hooks/useConfidenceThreshold";
+import { exportCompetitorPricingXlsx } from "@/lib/competitor-excel-export";
 
 type Row = {
   key: string;
@@ -78,7 +82,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
   const [minConfidence, setMinConfidence] = useConfidenceThreshold();
 
   const rows = useMemo<Row[]>(() => {
-    if (comp.status !== "success") return [];
+    if (comp.status !== "success" && comp.status !== "loading") return [];
     const out: Row[] = [];
     products.forEach((pa, idx) => {
       const key = productKey(pa.product, idx);
@@ -135,8 +139,17 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
         </CardHeader>
         <CardContent>
           {comp.status === "loading" && (
-            <div className="text-sm text-muted-foreground">
-              Matching {comp.totalCount} products to the competitor database…
+            <div className="space-y-2">
+              <div className="text-sm text-muted-foreground">
+                Matching {comp.processedCount.toLocaleString()} of {comp.totalCount.toLocaleString()} products to the competitor database…
+                {comp.matchedCount > 0 && (
+                  <span> · {comp.matchedCount.toLocaleString()} matched so far</span>
+                )}
+              </div>
+              <Progress value={comp.totalCount ? (comp.processedCount / comp.totalCount) * 100 : 0} />
+              {rows.length > 0 && (
+                <div className="text-xs text-muted-foreground pt-2">Live preview of matches found so far ({rows.length}). Final stats appear once matching completes.</div>
+              )}
             </div>
           )}
           {comp.status === "error" && (
@@ -196,6 +209,14 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => exportCompetitorPricingXlsx(products, comp.matches, minConfidence, "deeper_dive")}
+                    className="gap-1"
+                  >
+                    <Download className="h-4 w-4" /> Export Excel
+                  </Button>
                 </div>
               </div>
               <div className="border rounded-md">

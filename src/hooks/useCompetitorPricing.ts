@@ -23,6 +23,7 @@ export type CompetitorState = {
   error?: string;
   matchedCount: number;
   totalCount: number;
+  processedCount: number;
 };
 
 /** Build the canonical row key (must match how the UI looks rows up). */
@@ -35,15 +36,16 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorStat
     matches: {},
     matchedCount: 0,
     totalCount: 0,
+    processedCount: 0,
   });
 
   useEffect(() => {
     if (!products || products.length === 0) {
-      setState({ status: "idle", matches: {}, matchedCount: 0, totalCount: 0 });
+      setState({ status: "idle", matches: {}, matchedCount: 0, totalCount: 0, processedCount: 0 });
       return;
     }
     let cancelled = false;
-    setState((s) => ({ ...s, status: "loading", totalCount: products.length }));
+    setState({ status: "loading", matches: {}, matchedCount: 0, totalCount: products.length, processedCount: 0 });
 
     (async () => {
       try {
@@ -53,37 +55,61 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorStat
           name: p.stockName || "",
         }));
 
-        // Chunk to keep RPC payloads sane
-        const CHUNK = 400;
+        const CHUNK = 300;
+        const CONCURRENCY = 5;
         const matches: CompetitorMap = {};
-        for (let i = 0; i < queries.length; i += CHUNK) {
-          const slice = queries.slice(i, i + CHUNK);
-          const { data, error } = await supabase.rpc("match_competitor_prices", {
-            queries: slice as any,
-          });
-          if (error) throw error;
-          for (const row of (data as any[]) ?? []) {
-            matches[row.key] = {
-              match_count: Number(row.match_count) || 0,
-              vendor_count: Number(row.vendor_count) || 0,
-              min_price: Number(row.min_price),
-              avg_price: Number(row.avg_price),
-              max_price: Number(row.max_price),
-              median_price: Number(row.median_price),
-              example_vendor: row.example_vendor,
-              example_name: row.example_name,
-              match_method: row.match_method,
-              confidence: row.confidence == null ? 0 : Number(row.confidence),
-            };
+        const slices: typeof queries[] = [];
+        for (let i = 0; i < queries.length; i += CHUNK) slices.push(queries.slice(i, i + CHUNK));
+
+        let nextIdx = 0;
+        let processed = 0;
+
+        const runOne = async () => {
+          while (true) {
+            if (cancelled) return;
+            const idx = nextIdx++;
+            if (idx >= slices.length) return;
+            const slice = slices[idx];
+            const { data, error } = await supabase.rpc("match_competitor_prices", {
+              queries: slice as any,
+            });
+            if (error) throw error;
+            for (const row of (data as any[]) ?? []) {
+              matches[row.key] = {
+                match_count: Number(row.match_count) || 0,
+                vendor_count: Number(row.vendor_count) || 0,
+                min_price: Number(row.min_price),
+                avg_price: Number(row.avg_price),
+                max_price: Number(row.max_price),
+                median_price: Number(row.median_price),
+                example_vendor: row.example_vendor,
+                example_name: row.example_name,
+                match_method: row.match_method,
+                confidence: row.confidence == null ? 0 : Number(row.confidence),
+              };
+            }
+            processed += slice.length;
+            if (!cancelled) {
+              setState((s) => ({
+                ...s,
+                status: "loading",
+                matches: { ...matches },
+                matchedCount: Object.keys(matches).length,
+                processedCount: processed,
+                totalCount: products.length,
+              }));
+            }
           }
-          if (cancelled) return;
-        }
+        };
+
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, slices.length) }, runOne));
         if (cancelled) return;
         setState({
           status: "success",
           matches,
           matchedCount: Object.keys(matches).length,
           totalCount: products.length,
+          processedCount: products.length,
         });
       } catch (e: any) {
         if (cancelled) return;
@@ -93,6 +119,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorStat
           error: e?.message || "Failed to load competitor pricing",
           matchedCount: 0,
           totalCount: products.length,
+          processedCount: 0,
         });
       }
     })();
