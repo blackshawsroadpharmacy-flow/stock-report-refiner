@@ -82,7 +82,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
   const [minConfidence, setMinConfidence] = useConfidenceThreshold();
 
   const rows = useMemo<Row[]>(() => {
-    if (comp.status !== "success") return [];
+    if (comp.status !== "success" && comp.status !== "loading") return [];
     const out: Row[] = [];
     products.forEach((pa, idx) => {
       const key = productKey(pa.product, idx);
