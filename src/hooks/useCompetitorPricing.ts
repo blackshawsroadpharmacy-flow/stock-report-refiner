@@ -24,6 +24,7 @@ export type CompetitorState = {
   matchedCount: number;
   totalCount: number;
   processedCount: number;
+  processedKeys: Set<string>;
 };
 
 export type CompetitorPricingResult = CompetitorState & {
