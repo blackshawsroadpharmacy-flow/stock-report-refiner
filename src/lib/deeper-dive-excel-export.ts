@@ -82,6 +82,15 @@ function buildSheet(title: string, subtitle: string, columns: Col[], rows: any[]
   ws["!cols"] = columns.map((c) => ({ wch: c.width }));
   // Freeze under header (row index 4 in 0-based)
   ws["!freeze"] = { xSplit: 0, ySplit: 4 };
+  // Force any column whose header contains "APN", "PDE", "Barcode" or "SKU"
+  // to be stored as text so Excel cannot mangle it into scientific notation.
+  const textCols: number[] = [];
+  columns.forEach((c, i) => {
+    if (/\b(apn|pde|barcode|sku)\b/i.test(c.header)) textCols.push(i);
+  });
+  if (textCols.length && rows.length) {
+    forceTextColumns(ws, textCols, 4, 4 + rows.length - 1);
+  }
   return ws;
 }
 
