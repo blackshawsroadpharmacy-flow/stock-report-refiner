@@ -1,3 +1,5 @@
+import * as XLSX from "xlsx-js-style";
+
 // Centralised barcode / APN / PDE handling.
 //
 // Goals:
