@@ -14,13 +14,58 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      competitor_prices: {
+        Row: {
+          barcode_raw: string | null
+          created_at: string
+          id: number
+          pde: string | null
+          product_name: string
+          product_name_normalized: string
+          product_type: string | null
+          rrp: number | null
+          sell_price: number | null
+          source: string
+          variant: string | null
+          vendor: string | null
+        }
+        Insert: {
+          barcode_raw?: string | null
+          created_at?: string
+          id?: number
+          pde?: string | null
+          product_name: string
+          product_name_normalized: string
+          product_type?: string | null
+          rrp?: number | null
+          sell_price?: number | null
+          source?: string
+          variant?: string | null
+          vendor?: string | null
+        }
+        Update: {
+          barcode_raw?: string | null
+          created_at?: string
+          id?: number
+          pde?: string | null
+          product_name?: string
+          product_name_normalized?: string
+          product_type?: string | null
+          rrp?: number | null
+          sell_price?: number | null
+          source?: string
+          variant?: string | null
+          vendor?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       [_ in never]: never
