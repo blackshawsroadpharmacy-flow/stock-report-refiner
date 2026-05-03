@@ -12,6 +12,7 @@ export type CompetitorMatch = {
   example_vendor: string | null;
   example_name: string | null;
   match_method: "pde" | "name_exact" | "name_fuzzy";
+  confidence: number;
 };
 
 export type CompetitorMap = Record<string, CompetitorMatch>;
@@ -72,6 +73,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorStat
               example_vendor: row.example_vendor,
               example_name: row.example_name,
               match_method: row.match_method,
+              confidence: row.confidence == null ? 0 : Number(row.confidence),
             };
           }
           if (cancelled) return;
