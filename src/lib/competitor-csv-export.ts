@@ -1,5 +1,6 @@
 import type { ProductAnalysis } from "./fos-analyzer";
 import { productKey, type CompetitorMap } from "@/hooks/useCompetitorPricing";
+import { csvBarcodeCell } from "./barcode-utils";
 
 const METHOD: Record<string, string> = {
   pde: "APN",
