@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx-js-style";
+import { normalizeBarcode, forceTextColumns } from "./barcode-utils";
 
 export const HEADERS = [
   "Stock Name",
