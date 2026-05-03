@@ -1,8 +1,11 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Download } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -17,6 +20,7 @@ import {
   CONFIDENCE_OPTIONS,
   useConfidenceThreshold,
 } from "@/hooks/useConfidenceThreshold";
+import { exportCompetitorPricingXlsx } from "@/lib/competitor-excel-export";
 
 type Row = {
   key: string;
