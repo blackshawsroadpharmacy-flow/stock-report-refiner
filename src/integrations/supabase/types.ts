@@ -97,6 +97,7 @@ export type Database = {
           vendor_count: number
         }[]
       }
+      normalize_competitor_code: { Args: { s: string }; Returns: string }
       normalize_product_name: { Args: { s: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
