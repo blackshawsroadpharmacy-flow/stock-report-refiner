@@ -9,6 +9,7 @@ import { getThresholds } from "@/config/analysisConfig";
 // ─── Cleaned product (extends Product with derived fields) ────────────────
 export type CleanedProduct = Product & {
   flagsString: string; // comma-joined flag labels (rebuilt from analysis)
+  flagsSet: Set<string>; // precise set for fast hasFlag() checks
   daysOfStockLeft: number | null;
   scoreBand: ProductAnalysis["scoreBand"];
   score: number;
@@ -112,6 +113,7 @@ export function cleanDataset(
     const cleaned: CleanedProduct = {
       ...p,
       flagsString: labels.join(", "),
+      flagsSet: new Set(labels),
       daysOfStockLeft: computeDaysOfStockLeft(p, periodDays),
       scoreBand: pa.scoreBand,
       score: pa.score,
@@ -300,7 +302,7 @@ export function buildActionCard(
   const priceFixCandidates = cleanedData
     .filter(
       (p) =>
-        p.flagsString.includes("BELOW WHOLESALE") &&
+        p.flagsSet.has("BELOW WHOLESALE") &&
         p.soh > 0 &&
         p.dept !== "NDSS" &&
         p.dept !== "PHARMACIST SERVICE CHARGES",
@@ -379,22 +381,22 @@ export function buildActionCard(
     .filter(
       (p) =>
         p.soh > 0 &&
-        (p.flagsString.includes("NO SELL PRICE") ||
-          p.flagsString.includes("NO COST DATA") ||
-          p.flagsString.includes("COST CREEP")),
+        (p.flagsSet.has("NO SELL PRICE") ||
+          p.flagsSet.has("NO COST DATA") ||
+          p.flagsSet.has("COST CREEP")),
     )
     .sort((a, b) => b.stockValue - a.stockValue)
     .slice(0, 5);
   for (const p of investigateCandidates) {
     let doThis = "Check pricing & cost in Z Office";
     let why = "";
-    if (p.flagsString.includes("NO SELL PRICE")) {
+    if (p.flagsSet.has("NO SELL PRICE")) {
       doThis = "Set sell price in Z Office and Shopify admin";
       why = "No sell price set";
-    } else if (p.flagsString.includes("NO COST DATA")) {
+    } else if (p.flagsSet.has("NO COST DATA")) {
       doThis = "Enter supplier cost in Z Office product file";
       why = "No cost recorded";
-    } else if (p.flagsString.includes("COST CREEP")) {
+    } else if (p.flagsSet.has("COST CREEP")) {
       doThis = "Check latest invoice — cost has increased since last order";
       why = `Cost ${fmtAUD(p.cost)} > avg ${fmtAUD(p.avgCost)}`;
     }
@@ -785,10 +787,10 @@ export function buildStrategicAnalystReport(
 
   // Section 5 — Pricing & Margin Flags
   {
-    const belowWS = data.filter((p) => p.flagsString.includes("BELOW WHOLESALE")).length;
-    const noPrice = data.filter((p) => p.flagsString.includes("NO SELL PRICE")).length;
-    const noCost = data.filter((p) => p.flagsString.includes("NO COST DATA")).length;
-    const costCreep = data.filter((p) => p.flagsString.includes("COST CREEP")).length;
+    const belowWS = data.filter((p) => p.flagsSet.has("BELOW WHOLESALE")).length;
+    const noPrice = data.filter((p) => p.flagsSet.has("NO SELL PRICE")).length;
+    const noCost = data.filter((p) => p.flagsSet.has("NO COST DATA")).length;
+    const costCreep = data.filter((p) => p.flagsSet.has("COST CREEP")).length;
     const highRevLowMargin = data.filter(
       (p) => p.salesVal > 1000 && p.marginPct > 0 && p.marginPct < 20,
     );
@@ -829,7 +831,7 @@ export function buildStrategicAnalystReport(
       why = "Below-95% data reliability means valuations, reorder triggers, and margin reports are systematically off.";
       benefit = "Restores confidence in every other metric in the report.";
     } else {
-      const belowWS = data.filter((p) => p.flagsString.includes("BELOW WHOLESALE"));
+      const belowWS = data.filter((p) => p.flagsSet.has("BELOW WHOLESALE"));
       if (belowWS.length > 0) {
         action = `Correct sell prices on the ${belowWS.length} line(s) currently selling below wholesale.`;
         why = "Each sale at a sub-wholesale price is a direct loss — the more units move, the worse it gets.";
