@@ -74,16 +74,20 @@ export function exportCompetitorPricingCsv(
     else if (Math.abs(priceDeltaPct) <= 2) pos = "At market";
     else pos = priceDeltaPct < 0 ? "Below avg" : "Above avg";
 
-    lines.push([
-      p.stockName, p.apn, (p as any).department ?? "", p.soh,
-      r2(our), r2(cost), r2(ourMarginPct),
-      METHOD[m.match_method], Math.round(m.confidence * 100),
-      m.match_count, m.vendor_count,
-      r2(m.min_price), r2(m.avg_price), r2(m.median_price), r2(m.max_price),
-      r2(compMargin), r2(marginGapPp),
-      r2(priceDelta), r2(priceDeltaPct), pos,
-      m.example_vendor ?? "", m.example_name ?? "",
-    ].map(csvEscape).join(","));
+    const fields = [
+      csvEscape(p.stockName),
+      csvBarcodeCell(p.apn),
+      csvEscape((p as any).department ?? ""),
+      csvEscape(p.soh),
+      csvEscape(r2(our)), csvEscape(r2(cost)), csvEscape(r2(ourMarginPct)),
+      csvEscape(METHOD[m.match_method]), csvEscape(Math.round(m.confidence * 100)),
+      csvEscape(m.match_count), csvEscape(m.vendor_count),
+      csvEscape(r2(m.min_price)), csvEscape(r2(m.avg_price)), csvEscape(r2(m.median_price)), csvEscape(r2(m.max_price)),
+      csvEscape(r2(compMargin)), csvEscape(r2(marginGapPp)),
+      csvEscape(r2(priceDelta)), csvEscape(r2(priceDeltaPct)), csvEscape(pos),
+      csvEscape(m.example_vendor ?? ""), csvEscape(m.example_name ?? ""),
+    ];
+    lines.push(fields.join(","));
   }
 
   // BOM for Excel UTF-8 compatibility
