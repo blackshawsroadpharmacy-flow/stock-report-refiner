@@ -104,7 +104,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
   };
 
   const rows = useMemo<Row[]>(() => {
-    if (comp.status !== "success" && comp.status !== "loading") return [];
+    if (comp.status !== "success" && comp.status !== "loading" && comp.status !== "cancelled") return [];
     const out: Row[] = [];
     products.forEach((pa, idx) => {
       const key = productKey(pa.product, idx);
