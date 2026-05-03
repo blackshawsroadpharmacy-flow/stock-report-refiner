@@ -68,6 +68,7 @@ export type Database = {
         Args: { queries: Json }
         Returns: {
           avg_price: number
+          confidence: number
           example_name: string
           example_vendor: string
           key: string
