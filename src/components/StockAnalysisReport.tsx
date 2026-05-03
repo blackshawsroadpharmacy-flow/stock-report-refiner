@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useDeferredValue } from "react";
+import { useMemo, useRef, useState, Suspense, lazy, useDeferredValue } from "react";
 import {
   type AnalysisResult,
   type Flag,
@@ -7,7 +7,10 @@ import {
   fmtPct,
   fmtDate,
 } from "@/lib/fos-analyzer";
-import { DeeperDiveModal } from "./deeper-dive/DeeperDiveModal";
+const DeeperDiveModal = lazy(async () => {
+  const { DeeperDiveModal } = await import("./deeper-dive/DeeperDiveModal");
+  return { default: DeeperDiveModal };
+});
 import { useCompetitorPricing, productKey } from "@/hooks/useCompetitorPricing";
 import { CONFIDENCE_OPTIONS, useConfidenceThreshold } from "@/hooks/useConfidenceThreshold";
 
@@ -327,7 +330,9 @@ export function StockAnalysisReport({
         </div>
       </div>
       {deeperOpen && (
-        <DeeperDiveModal open={deeperOpen} onOpenChange={setDeeperOpen} result={result} />
+        <Suspense fallback={null}>
+          <DeeperDiveModal open={deeperOpen} onOpenChange={setDeeperOpen} result={result} />
+        </Suspense>
       )}
     </div>
   );
