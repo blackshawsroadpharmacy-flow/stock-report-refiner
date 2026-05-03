@@ -17,6 +17,12 @@ export type CompetitorMatch = {
 
 export type CompetitorMap = Record<string, CompetitorMatch>;
 
+export type MethodBreakdown = {
+  pde: number;
+  name_exact: number;
+  name_fuzzy: number;
+};
+
 export type CompetitorState = {
   status: "idle" | "loading" | "success" | "error" | "cancelled";
   matches: CompetitorMap;
@@ -25,6 +31,12 @@ export type CompetitorState = {
   totalCount: number;
   processedCount: number;
   processedKeys: Set<string>;
+  methodCounts: MethodBreakdown;
+  elapsedMs: number;
+  msPerProduct: number;
+  lastChunkMs: number;
+  lastChunkSize: number;
+  lastChunkMsPerProduct: number;
 };
 
 export type CompetitorPricingResult = CompetitorState & {
