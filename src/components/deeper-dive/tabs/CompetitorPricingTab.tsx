@@ -195,6 +195,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
               <AlertDescription>
                 Stopped after processing {comp.processedCount.toLocaleString()} of {comp.totalCount.toLocaleString()} products.
                 Showing {comp.matchedCount.toLocaleString()} partial matches below.
+                <div className="mt-2"><TimingBreakdown comp={comp} /></div>
               </AlertDescription>
             </Alert>
           )}
