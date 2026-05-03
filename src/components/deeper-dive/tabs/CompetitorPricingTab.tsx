@@ -26,14 +26,16 @@ import { exportCompetitorPricingCsv } from "@/lib/competitor-csv-export";
 type Row = {
   key: string;
   pa: ProductAnalysis;
-  match: CompetitorMatch;
+  match: CompetitorMatch | null;
   ourPrice: number;
   ourCost: number;
   priceDeltaPct: number; // (ours - avg) / avg
   ourMarginPct: number;
   competitorAvgMarginPct: number; // (avg - ourCost)/avg
   marginGapPct: number; // ours - competitor
-  position: "Cheapest" | "Below avg" | "At market" | "Above avg" | "Most expensive";
+  position: "Cheapest" | "Below avg" | "At market" | "Above avg" | "Most expensive" | "—";
+  processed: boolean;
+  matched: boolean;
 };
 
 function position(our: number, min: number, avg: number, max: number): Row["position"] {
