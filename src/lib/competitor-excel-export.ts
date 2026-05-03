@@ -457,6 +457,8 @@ export async function exportCompetitorPricingXlsx(
   if (vRows.length > 1) {
     ws3["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: vRows.length - 1, c: vHeaders.length - 1 } }) };
   }
+  // Our APN (col 1) and Competitor PDE (col 7) — text only
+  forceTextColumns(ws3, [1, 7], 1, vRows.length - 1);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws2, "Summary");
