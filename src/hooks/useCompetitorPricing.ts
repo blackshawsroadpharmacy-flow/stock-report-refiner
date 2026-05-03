@@ -34,7 +34,7 @@ export type CompetitorPricingResult = CompetitorState & {
 export const productKey = (p: Product, idx: number) =>
   `${idx}|${(p.apn || "").trim()}|${(p.stockName || "").trim()}`;
 
-export function useCompetitorPricing(products: Product[] | null): CompetitorState {
+export function useCompetitorPricing(products: Product[] | null): CompetitorPricingResult {
   const [state, setState] = useState<CompetitorState>({
     status: "idle",
     matches: {},
@@ -42,13 +42,24 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorStat
     totalCount: 0,
     processedCount: 0,
   });
+  const cancelRef = useRef<{ cancelled: boolean } | null>(null);
+
+  const cancel = useCallback(() => {
+    if (cancelRef.current) cancelRef.current.cancelled = true;
+    setState((s) =>
+      s.status === "loading"
+        ? { ...s, status: "cancelled" }
+        : s,
+    );
+  }, []);
 
   useEffect(() => {
     if (!products || products.length === 0) {
       setState({ status: "idle", matches: {}, matchedCount: 0, totalCount: 0, processedCount: 0 });
       return;
     }
-    let cancelled = false;
+    const token = { cancelled: false };
+    cancelRef.current = token;
     setState({ status: "loading", matches: {}, matchedCount: 0, totalCount: products.length, processedCount: 0 });
 
     (async () => {
@@ -70,13 +81,14 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorStat
 
         const runOne = async () => {
           while (true) {
-            if (cancelled) return;
+            if (token.cancelled) return;
             const idx = nextIdx++;
             if (idx >= slices.length) return;
             const slice = slices[idx];
             const { data, error } = await supabase.rpc("match_competitor_prices", {
               queries: slice as any,
             });
+            if (token.cancelled) return;
             if (error) throw error;
             for (const row of (data as any[]) ?? []) {
               matches[row.key] = {
@@ -93,7 +105,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorStat
               };
             }
             processed += slice.length;
-            if (!cancelled) {
+            if (!token.cancelled) {
               setState((s) => ({
                 ...s,
                 status: "loading",
@@ -107,7 +119,16 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorStat
         };
 
         await Promise.all(Array.from({ length: Math.min(CONCURRENCY, slices.length) }, runOne));
-        if (cancelled) return;
+        if (token.cancelled) {
+          setState({
+            status: "cancelled",
+            matches,
+            matchedCount: Object.keys(matches).length,
+            totalCount: products.length,
+            processedCount: processed,
+          });
+          return;
+        }
         setState({
           status: "success",
           matches,
@@ -116,7 +137,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorStat
           processedCount: products.length,
         });
       } catch (e: any) {
-        if (cancelled) return;
+        if (token.cancelled) return;
         setState({
           status: "error",
           matches: {},
@@ -129,9 +150,9 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorStat
     })();
 
     return () => {
-      cancelled = true;
+      token.cancelled = true;
     };
   }, [products]);
 
-  return state;
+  return { ...state, cancel };
 }
