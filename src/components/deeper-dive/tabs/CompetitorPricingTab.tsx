@@ -148,7 +148,10 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
           {comp.status === "success" && (
             <>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm mb-4">
-                <Stat label="Matched" value={`${comp.matchedCount} / ${comp.totalCount}`} />
+                <Stat
+                  label={minConfidence > 0 ? `Matched ≥${Math.round(minConfidence * 100)}%` : "Matched"}
+                  value={`${rows.length} / ${comp.totalCount}`}
+                />
                 <Stat label="Above market" value={String(stats?.above ?? 0)} tone="warn" />
                 <Stat label="At market" value={String(stats?.atMarket ?? 0)} />
                 <Stat label="Below market" value={String(stats?.below ?? 0)} tone="good" />
