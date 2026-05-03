@@ -209,6 +209,14 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => exportCompetitorPricingXlsx(products, comp.matches, minConfidence, "deeper_dive")}
+                    className="gap-1"
+                  >
+                    <Download className="h-4 w-4" /> Export Excel
+                  </Button>
                 </div>
               </div>
               <div className="border rounded-md">
