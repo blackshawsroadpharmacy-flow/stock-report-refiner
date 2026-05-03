@@ -43,6 +43,18 @@ export function DeeperDiveModal({
   );
   const tga = useTGARecallCheck(productNames, open);
   const [tab, setTab] = useState("profit");
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      await exportDeeperDiveXlsx(result);
+    } catch (e) {
+      console.error("Deeper Dive export failed:", e);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const tgaUrgent =
     tga.status === "success" && tga.result?.ok && tga.result.recallsFound;
