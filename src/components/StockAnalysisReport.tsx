@@ -266,6 +266,8 @@ function Scorecard({ result }: { result: AnalysisResult }) {
             <th>vs Market</th>
             <th>Margin %</th>
             <th>Margin Gap</th>
+            <th>Match</th>
+            <th>Conf.</th>
             <th>GP $</th>
             <th>Qty Sold</th>
             <th>Score</th>
@@ -299,6 +301,15 @@ function Scorecard({ result }: { result: AnalysisResult }) {
                   fontWeight: marginGap !== null && Math.abs(marginGap) > 2 ? 600 : undefined,
                 }}>
                   {marginGap === null ? "—" : `${marginGap > 0 ? "+" : ""}${marginGap.toFixed(1)}%`}
+                </td>
+                <td style={{ fontSize: 12 }}>
+                  {m ? (m.match_method === "pde" ? "APN" : m.match_method === "name_exact" ? "Exact" : "Fuzzy") : "—"}
+                </td>
+                <td className="num" style={{
+                  color: !m ? undefined : m.confidence >= 0.95 ? "#27ae60" : m.confidence >= 0.75 ? "#16a34a" : m.confidence >= 0.6 ? "#d97706" : "#c0392b",
+                  fontWeight: m && m.confidence < 0.75 ? 600 : undefined,
+                }}>
+                  {m ? `${Math.round(m.confidence * 100)}%` : "—"}
                 </td>
                 <td className="num">{fmtAUD(pa.product.salesGP)}</td>
                 <td className="num">{pa.product.qtySold}</td>
