@@ -91,23 +91,62 @@ export const checkTGARecalls = createServerFn({ method: "POST" })
       const xml = await res.text();
       const items = parseRssItems(xml);
 
-      // Build lowercase needles from the first 10 chars of each product name.
-      const needles = data.productNames
-        .map((n) => n.slice(0, 10).toLowerCase())
-        .filter((n) => n.length >= 4);
+      // Build a token index from each product name for smarter matching.
+      // We match by whole-word tokens (length ≥ 4) to reduce false positives
+      // from short/generic substrings. A product hits if its full name appears
+      // in the haystack OR at least 2 of its significant tokens match.
+      type TokenProfile = { raw: string; tokens: string[] };
+      const profiles: TokenProfile[] = data.productNames.map((raw) => ({
+        raw,
+        tokens: raw
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .filter((t) => t.length >= 4),
+      }));
 
       const matches: TGAMatch[] = [];
+      const seenPairs = new Set<string>();
+
       for (const item of items) {
         const haystack = `${item.title} ${item.description}`.toLowerCase();
-        for (let i = 0; i < needles.length; i++) {
-          const needle = needles[i];
-          if (haystack.includes(needle)) {
-            matches.push({
-              productName: data.productNames[i],
-              recallTitle: item.title,
-              recallLink: item.link,
-              pubDate: item.pubDate,
-            });
+        for (const profile of profiles) {
+          if (profile.tokens.length === 0) continue;
+
+          // Fast-path: full name substring
+          if (haystack.includes(profile.raw.toLowerCase())) {
+            const key = `${profile.raw}::${item.link}`;
+            if (!seenPairs.has(key)) {
+              seenPairs.add(key);
+              matches.push({
+                productName: profile.raw,
+                recallTitle: item.title,
+                recallLink: item.link,
+                pubDate: item.pubDate,
+              });
+            }
+            continue;
+          }
+
+          // Token-based word-boundary matching
+          let hits = 0;
+          for (const token of profile.tokens) {
+            const re = new RegExp(`\\b${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+            if (re.test(haystack)) hits++;
+          }
+
+          // Threshold: ≥2 token hits, or a single-token name that matches exactly
+          const threshold = profile.tokens.length === 1 ? 1 : 2;
+          if (hits >= threshold) {
+            const key = `${profile.raw}::${item.link}`;
+            if (!seenPairs.has(key)) {
+              seenPairs.add(key);
+              matches.push({
+                productName: profile.raw,
+                recallTitle: item.title,
+                recallLink: item.link,
+                pubDate: item.pubDate,
+              });
+            }
           }
         }
       }
