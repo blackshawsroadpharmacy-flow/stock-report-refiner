@@ -183,6 +183,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                 </Button>
               </div>
               <Progress value={comp.totalCount ? (comp.processedCount / comp.totalCount) * 100 : 0} />
+              <TimingBreakdown comp={comp} />
               {rows.length > 0 && (
                 <div className="text-xs text-muted-foreground pt-2">Live preview of matches found so far ({rows.length}). Final stats appear once matching completes.</div>
               )}
