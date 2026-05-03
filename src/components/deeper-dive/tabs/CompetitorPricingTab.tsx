@@ -182,6 +182,21 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                     {f === "all" ? "All" : f === "above" ? "Above market" : f === "below" ? "Below market" : "At market"}
                   </button>
                 ))}
+                <div className="ml-auto flex items-center gap-2">
+                  <label htmlFor="conf-threshold" className="text-xs text-muted-foreground">
+                    Min confidence
+                  </label>
+                  <select
+                    id="conf-threshold"
+                    value={minConfidence}
+                    onChange={(e) => setMinConfidence(Number(e.target.value))}
+                    className="text-xs border rounded-md px-2 py-1 bg-background"
+                  >
+                    {CONFIDENCE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="border rounded-md">
                 <Table>
