@@ -47,15 +47,25 @@ export type CompetitorPricingResult = CompetitorState & {
 export const productKey = (p: Product, idx: number) =>
   `${idx}|${(p.apn || "").trim()}|${(p.stockName || "").trim()}`;
 
+const EMPTY_METHODS: MethodBreakdown = { pde: 0, name_exact: 0, name_fuzzy: 0 };
+
+const idleState = (): CompetitorState => ({
+  status: "idle",
+  matches: {},
+  matchedCount: 0,
+  totalCount: 0,
+  processedCount: 0,
+  processedKeys: new Set(),
+  methodCounts: { ...EMPTY_METHODS },
+  elapsedMs: 0,
+  msPerProduct: 0,
+  lastChunkMs: 0,
+  lastChunkSize: 0,
+  lastChunkMsPerProduct: 0,
+});
+
 export function useCompetitorPricing(products: Product[] | null): CompetitorPricingResult {
-  const [state, setState] = useState<CompetitorState>({
-    status: "idle",
-    matches: {},
-    matchedCount: 0,
-    totalCount: 0,
-    processedCount: 0,
-    processedKeys: new Set(),
-  });
+  const [state, setState] = useState<CompetitorState>(idleState);
   const cancelRef = useRef<{ cancelled: boolean } | null>(null);
 
   const cancel = useCallback(() => {
@@ -69,12 +79,14 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
 
   useEffect(() => {
     if (!products || products.length === 0) {
-      setState({ status: "idle", matches: {}, matchedCount: 0, totalCount: 0, processedCount: 0, processedKeys: new Set() });
+      setState(idleState());
       return;
     }
     const token = { cancelled: false };
     cancelRef.current = token;
-    setState({ status: "loading", matches: {}, matchedCount: 0, totalCount: products.length, processedCount: 0, processedKeys: new Set() });
+    setState({ ...idleState(), status: "loading", totalCount: products.length });
+
+    const startedAt = performance.now();
 
     (async () => {
       try {
@@ -89,6 +101,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
         const CONCURRENCY = 5;
         const matches: CompetitorMap = {};
         const processedKeys = new Set<string>();
+        const methodCounts: MethodBreakdown = { ...EMPTY_METHODS };
         const slices: typeof queries[] = [];
         for (let i = 0; i < queries.length; i += CHUNK) slices.push(queries.slice(i, i + CHUNK));
 
@@ -101,12 +114,15 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
             const idx = nextIdx++;
             if (idx >= slices.length) return;
             const slice = slices[idx];
+            const chunkStart = performance.now();
             const { data, error } = await supabase.rpc("match_competitor_prices", {
               queries: slice as any,
             });
+            const chunkMs = performance.now() - chunkStart;
             if (token.cancelled) return;
             if (error) throw error;
             for (const row of (data as any[]) ?? []) {
+              const method = row.match_method as CompetitorMatch["match_method"];
               matches[row.key] = {
                 match_count: Number(row.match_count) || 0,
                 vendor_count: Number(row.vendor_count) || 0,
@@ -116,12 +132,14 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
                 median_price: Number(row.median_price),
                 example_vendor: row.example_vendor,
                 example_name: row.example_name,
-                match_method: row.match_method,
+                match_method: method,
                 confidence: row.confidence == null ? 0 : Number(row.confidence),
               };
+              if (method && method in methodCounts) methodCounts[method] += 1;
             }
             for (const q of slice) processedKeys.add(q.key);
             processed += slice.length;
+            const elapsed = performance.now() - startedAt;
             if (!token.cancelled) {
               setState((s) => ({
                 ...s,
@@ -131,41 +149,53 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
                 processedCount: processed,
                 totalCount: products.length,
                 processedKeys: new Set(processedKeys),
+                methodCounts: { ...methodCounts },
+                elapsedMs: elapsed,
+                msPerProduct: processed > 0 ? elapsed / processed : 0,
+                lastChunkMs: chunkMs,
+                lastChunkSize: slice.length,
+                lastChunkMsPerProduct: slice.length > 0 ? chunkMs / slice.length : 0,
               }));
             }
           }
         };
 
         await Promise.all(Array.from({ length: Math.min(CONCURRENCY, slices.length) }, runOne));
+        const elapsed = performance.now() - startedAt;
         if (token.cancelled) {
-          setState({
+          setState((s) => ({
+            ...s,
             status: "cancelled",
             matches,
             matchedCount: Object.keys(matches).length,
             totalCount: products.length,
             processedCount: processed,
             processedKeys,
-          });
+            methodCounts: { ...methodCounts },
+            elapsedMs: elapsed,
+            msPerProduct: processed > 0 ? elapsed / processed : 0,
+          }));
           return;
         }
-        setState({
+        setState((s) => ({
+          ...s,
           status: "success",
           matches,
           matchedCount: Object.keys(matches).length,
           totalCount: products.length,
           processedCount: products.length,
           processedKeys,
-        });
+          methodCounts: { ...methodCounts },
+          elapsedMs: elapsed,
+          msPerProduct: products.length > 0 ? elapsed / products.length : 0,
+        }));
       } catch (e: any) {
         if (token.cancelled) return;
         setState({
+          ...idleState(),
           status: "error",
-          matches: {},
           error: e?.message || "Failed to load competitor pricing",
-          matchedCount: 0,
           totalCount: products.length,
-          processedCount: 0,
-          processedKeys: new Set(),
         });
       }
     })();
@@ -177,3 +207,4 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
 
   return { ...state, cancel };
 }
+
