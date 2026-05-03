@@ -21,6 +21,7 @@ import {
   useConfidenceThreshold,
 } from "@/hooks/useConfidenceThreshold";
 import { exportCompetitorPricingXlsx } from "@/lib/competitor-excel-export";
+import { exportCompetitorPricingCsv } from "@/lib/competitor-csv-export";
 
 type Row = {
   key: string;
@@ -209,6 +210,14 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => exportCompetitorPricingCsv(products, comp.matches, minConfidence, "deeper_dive")}
+                    className="gap-1"
+                  >
+                    <Download className="h-4 w-4" /> Export CSV
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
