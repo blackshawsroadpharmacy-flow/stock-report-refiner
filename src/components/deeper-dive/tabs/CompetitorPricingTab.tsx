@@ -81,6 +81,27 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "above" | "below" | "match">("all");
   const [minConfidence, setMinConfidence] = useConfidenceThreshold();
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+
+  const handleExportXlsx = async () => {
+    try {
+      setExportStatus("Preparing…");
+      await exportCompetitorPricingXlsx(
+        products,
+        comp.matches,
+        minConfidence,
+        "deeper_dive",
+        (stage, done, total) => {
+          if (done && total) setExportStatus(`${stage} ${done.toLocaleString()} / ${total.toLocaleString()}`);
+          else setExportStatus(stage);
+        },
+      );
+      setExportStatus(null);
+    } catch (e: any) {
+      setExportStatus(`Export failed: ${e?.message ?? e}`);
+      setTimeout(() => setExportStatus(null), 4000);
+    }
+  };
 
   const rows = useMemo<Row[]>(() => {
     if (comp.status !== "success" && comp.status !== "loading") return [];
