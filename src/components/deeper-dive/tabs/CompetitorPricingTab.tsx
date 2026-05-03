@@ -13,6 +13,10 @@ import {
   useCompetitorPricing,
   type CompetitorMatch,
 } from "@/hooks/useCompetitorPricing";
+import {
+  CONFIDENCE_OPTIONS,
+  useConfidenceThreshold,
+} from "@/hooks/useConfidenceThreshold";
 
 type Row = {
   key: string;
