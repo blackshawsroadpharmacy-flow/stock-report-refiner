@@ -97,8 +97,8 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
           name: p.stockName || "",
         }));
 
-        const CHUNK = 300;
-        const CONCURRENCY = 5;
+        const CHUNK = 100;
+        const CONCURRENCY = 3;
         const matches: CompetitorMap = {};
         const processedKeys = new Set<string>();
         const methodCounts: MethodBreakdown = { ...EMPTY_METHODS };
