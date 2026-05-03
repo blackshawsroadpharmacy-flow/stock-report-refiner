@@ -104,7 +104,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
       });
     });
     return out;
-  }, [products, comp]);
+  }, [products, comp, minConfidence]);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
