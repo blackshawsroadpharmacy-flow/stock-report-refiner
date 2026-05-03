@@ -242,6 +242,8 @@ export async function exportCompetitorPricingXlsx(
   if (rows.length > 1) {
     ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length - 1, c: headers.length - 1 } }) };
   }
+  // APN column (index 1) — text only
+  forceTextColumns(ws, [1], 1, rows.length - 1);
 
   // Summary sheet
   const totalProducts = products.length;
