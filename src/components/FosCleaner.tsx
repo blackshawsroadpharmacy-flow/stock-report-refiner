@@ -8,6 +8,14 @@ import {
 import { analyze, type AnalysisResult } from "@/lib/fos-analyzer";
 import { buildAndDownloadAnalysisWorkbook } from "@/lib/fos-excel-export";
 import { StockAnalysisReport } from "./StockAnalysisReport";
+import {
+  storeFile,
+  loadFile,
+  clearFile,
+  storeFlag,
+  loadFlag,
+  clearFlag,
+} from "@/lib/persistentStorage";
 
 type Status =
   | { kind: "idle" }
@@ -22,40 +30,7 @@ const ANALYSIS_STEPS = [
   "Scoring products…",
 ];
 
-const STORAGE_KEY_FILE = "fos-cleaner:file-v1";
 const STORAGE_KEY_ANALYSIS_FLAG = "fos-cleaner:has-analysis-v1";
-
-type StoredFile = {
-  filename: string;
-  base64: string;
-};
-
-function arrayBufferToBase64(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(
-      null,
-      bytes.subarray(i, i + chunk) as unknown as number[],
-    );
-  }
-  return btoa(binary);
-}
-
-function base64ToArrayBuffer(b64: string): ArrayBuffer {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
-}
-
-function base64ToFile(stored: StoredFile): File {
-  const buf = base64ToArrayBuffer(stored.base64);
-  return new File([buf], stored.filename, {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-}
 
 export function FosCleaner() {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
@@ -65,6 +40,7 @@ export function FosCleaner() {
   const [analysisStep, setAnalysisStep] = useState(0);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [excelToast, setExcelToast] = useState<string | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -75,15 +51,13 @@ export function FosCleaner() {
   }, [analysis]);
 
   // Restore last uploaded file (and re-run analysis if it was previously generated)
-  // so a hard refresh of the preview doesn't blank the UI.
   useEffect(() => {
     let cancelled = false;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_FILE);
-      if (!raw) return;
-      const stored = JSON.parse(raw) as StoredFile;
-      if (!stored?.base64 || !stored?.filename) return;
-      const file = base64ToFile(stored);
+    loadFile().then((stored) => {
+      if (cancelled || !stored) return;
+      const file = new File([stored.buffer], stored.filename, {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
       setStatus({ kind: "loading", filename: file.name });
       processFosFile(file).then((result) => {
         if (cancelled) return;
@@ -92,27 +66,22 @@ export function FosCleaner() {
           return;
         }
         setStatus({ kind: "success", filename: file.name, result });
-        if (localStorage.getItem(STORAGE_KEY_ANALYSIS_FLAG) === "1") {
-          try {
-            setAnalysis(analyze(result.rows));
-          } catch {
-            // ignore — user can re-run manually
+        loadFlag(STORAGE_KEY_ANALYSIS_FLAG).then((flag) => {
+          if (flag === "1") {
+            try {
+              setAnalysis(analyze(result.rows));
+            } catch {
+              // user can re-run manually
+            }
           }
-        }
+        });
       });
-    } catch {
-      // corrupt entry — clear it
-      try {
-        localStorage.removeItem(STORAGE_KEY_FILE);
-        localStorage.removeItem(STORAGE_KEY_ANALYSIS_FLAG);
-      } catch {
-        // ignore
-      }
-    }
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }).catch((err) => {
+      setRestoreError(err?.message || "Failed to restore previous file");
+      clearFile().catch(() => {});
+      clearFlag(STORAGE_KEY_ANALYSIS_FLAG).catch(() => {});
+    });
+    return () => { cancelled = true; };
   }, []);
 
   const handleFile = useCallback(async (file: File) => {
@@ -121,7 +90,6 @@ export function FosCleaner() {
       return;
     }
     setStatus({ kind: "loading", filename: file.name });
-    // Read the file once so we can both process AND persist the same bytes.
     const buf = await file.arrayBuffer();
     const result = await processFosFile(
       new File([buf], file.name, { type: file.type }),
@@ -131,17 +99,11 @@ export function FosCleaner() {
       return;
     }
     setStatus({ kind: "success", filename: file.name, result });
-    // Persist the raw bytes so we can restore on refresh.
     try {
-      const stored: StoredFile = {
-        filename: file.name,
-        base64: arrayBufferToBase64(buf),
-      };
-      localStorage.setItem(STORAGE_KEY_FILE, JSON.stringify(stored));
-      // New file invalidates any previously persisted analysis flag.
-      localStorage.removeItem(STORAGE_KEY_ANALYSIS_FLAG);
+      await storeFile(file.name, buf);
+      await clearFlag(STORAGE_KEY_ANALYSIS_FLAG);
     } catch {
-      // Quota exceeded or storage disabled — non-fatal, just don't persist.
+      // IndexedDB unavailable — non-fatal
     }
   }, []);
 
@@ -163,17 +125,18 @@ export function FosCleaner() {
     [handleFile],
   );
 
-  const reset = () => {
+  const reset = async () => {
     setStatus({ kind: "idle" });
     setAnalysis(null);
     setAnalysing(false);
     setAnalysisStep(0);
     setExportingExcel(false);
     setExcelToast(null);
+    setRestoreError(null);
     if (inputRef.current) inputRef.current.value = "";
     try {
-      localStorage.removeItem(STORAGE_KEY_FILE);
-      localStorage.removeItem(STORAGE_KEY_ANALYSIS_FLAG);
+      await clearFile();
+      await clearFlag(STORAGE_KEY_ANALYSIS_FLAG);
     } catch {
       // ignore
     }
@@ -188,7 +151,6 @@ export function FosCleaner() {
     if (status.kind !== "success") return;
     setAnalysing(true);
     setAnalysisStep(0);
-    // Animate steps so user sees progress feedback (~1.4s total)
     for (let i = 0; i < ANALYSIS_STEPS.length; i++) {
       setAnalysisStep(i);
       await new Promise((r) => setTimeout(r, 350));
@@ -197,7 +159,7 @@ export function FosCleaner() {
     setAnalysis(result);
     setAnalysing(false);
     try {
-      localStorage.setItem(STORAGE_KEY_ANALYSIS_FLAG, "1");
+      await storeFlag(STORAGE_KEY_ANALYSIS_FLAG, "1");
     } catch {
       // ignore
     }
@@ -208,7 +170,6 @@ export function FosCleaner() {
     setExportingExcel(true);
     setExcelToast(null);
     try {
-      // Yield to the event loop so the spinner paints before the heavy work.
       await new Promise((r) => setTimeout(r, 50));
       const summary = buildAndDownloadAnalysisWorkbook(status.result.rows);
       setExcelToast(
