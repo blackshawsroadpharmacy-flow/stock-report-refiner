@@ -84,6 +84,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
       const key = productKey(pa.product, idx);
       const match = comp.matches[key];
       if (!match) return;
+      if (match.confidence < minConfidence) return;
       const our = pa.product.sellPrice;
       const cost = pa.product.ws1Cost > 0 ? pa.product.ws1Cost : pa.product.avgCost;
       if (our <= 0) return;
