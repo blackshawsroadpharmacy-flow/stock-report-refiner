@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useDeferredValue } from "react";
 import {
   type AnalysisResult,
   type Flag,
@@ -103,6 +103,7 @@ function Scorecard({ result }: { result: AnalysisResult }) {
   const productList = useMemo(() => result.products.map((p) => p.product), [result]);
   const comp = useCompetitorPricing(productList);
   const [minConfidence, setMinConfidence] = useConfidenceThreshold();
+  const deferredMinConfidence = useDeferredValue(minConfidence);
   // Build a key→original-index map so the competitor lookup matches
   const indexByPa = useMemo(() => {
     const m = new Map<ProductAnalysis, number>();
@@ -112,8 +113,8 @@ function Scorecard({ result }: { result: AnalysisResult }) {
 
   const matchedAboveThreshold = useMemo(() => {
     if (comp.status !== "success") return 0;
-    return Object.values(comp.matches).filter((m) => m.confidence >= minConfidence).length;
-  }, [comp, minConfidence]);
+    return Object.values(comp.matches).filter((m) => m.confidence >= deferredMinConfidence).length;
+  }, [comp, deferredMinConfidence]);
 
   return (
     <section>
@@ -163,7 +164,7 @@ function Scorecard({ result }: { result: AnalysisResult }) {
           {sorted.map((pa, i) => {
             const idx = indexByPa.get(pa);
             const rawMatch = idx !== undefined ? comp.matches[productKey(pa.product, idx)] : undefined;
-            const m = rawMatch && rawMatch.confidence >= minConfidence ? rawMatch : undefined;
+            const m = rawMatch && rawMatch.confidence >= deferredMinConfidence ? rawMatch : undefined;
             const our = pa.product.sellPrice;
             const cost = pa.product.ws1Cost > 0 ? pa.product.ws1Cost : pa.product.avgCost;
             const priceDelta = m && our > 0 ? ((our - m.avg_price) / m.avg_price) * 100 : null;
