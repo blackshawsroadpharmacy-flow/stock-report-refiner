@@ -240,6 +240,7 @@ function Scorecard({ result }: { result: AnalysisResult }) {
   );
   const productList = useMemo(() => result.products.map((p) => p.product), [result]);
   const comp = useCompetitorPricing(productList);
+  const [minConfidence, setMinConfidence] = useConfidenceThreshold();
   // Build a key→original-index map so the competitor lookup matches
   const indexByPa = useMemo(() => {
     const m = new Map<ProductAnalysis, number>();
@@ -247,15 +248,36 @@ function Scorecard({ result }: { result: AnalysisResult }) {
     return m;
   }, [result]);
 
+  const matchedAboveThreshold = useMemo(() => {
+    if (comp.status !== "success") return 0;
+    return Object.values(comp.matches).filter((m) => m.confidence >= minConfidence).length;
+  }, [comp, minConfidence]);
+
   return (
     <section>
       <h2>📋 Section 7: Full Product Scorecard</h2>
-      <div className="section-summary">
-        Sorted worst-first. {sorted.length} products analysed.
-        {comp.status === "success" && (
-          <> · <strong>{comp.matchedCount}</strong> matched to competitor pricing.</>
-        )}
-        {comp.status === "loading" && <> · Loading competitor pricing…</>}
+      <div className="section-summary" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+        <span>
+          Sorted worst-first. {sorted.length} products analysed.
+          {comp.status === "success" && (
+            <> · <strong>{matchedAboveThreshold}</strong> matched
+              {minConfidence > 0 ? ` at ≥${Math.round(minConfidence * 100)}% confidence` : " to competitor pricing"}.</>
+          )}
+          {comp.status === "loading" && <> · Loading competitor pricing…</>}
+        </span>
+        <span className="no-print" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+          <label htmlFor="scorecard-conf" style={{ fontSize: 12 }}>Min confidence:</label>
+          <select
+            id="scorecard-conf"
+            value={minConfidence}
+            onChange={(e) => setMinConfidence(Number(e.target.value))}
+            style={{ fontSize: 12, padding: "2px 6px", border: "1px solid var(--grey-200)", borderRadius: 4, background: "#fff" }}
+          >
+            {CONFIDENCE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </span>
       </div>
       <table className="scorecard">
         <thead>
