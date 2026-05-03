@@ -43,15 +43,23 @@ export function exportCompetitorPricingCsv(
     const ourMarginPct = p.marginPct > 0 ? p.marginPct : (cost > 0 && our > 0 ? ((our - cost) / our) * 100 : 0);
 
     if (!m || m.confidence < minConfidence) {
-      lines.push([
-        p.stockName, p.apn, (p as any).department ?? "", p.soh,
-        our || "", cost || "", our > 0 ? r2(ourMarginPct) : "",
-        m ? METHOD[m.match_method] : "No match",
-        m ? Math.round(m.confidence * 100) : "",
-        m?.match_count ?? "", m?.vendor_count ?? "",
+      const fields = [
+        csvEscape(p.stockName),
+        csvBarcodeCell(p.apn),
+        csvEscape((p as any).department ?? ""),
+        csvEscape(p.soh),
+        csvEscape(our || ""),
+        csvEscape(cost || ""),
+        csvEscape(our > 0 ? r2(ourMarginPct) : ""),
+        csvEscape(m ? METHOD[m.match_method] : "No match"),
+        csvEscape(m ? Math.round(m.confidence * 100) : ""),
+        csvEscape(m?.match_count ?? ""),
+        csvEscape(m?.vendor_count ?? ""),
         "", "", "", "", "", "", "", "", "",
-        m?.example_vendor ?? "", m?.example_name ?? "",
-      ].map(csvEscape).join(","));
+        csvEscape(m?.example_vendor ?? ""),
+        csvEscape(m?.example_name ?? ""),
+      ];
+      lines.push(fields.join(","));
       continue;
     }
 
