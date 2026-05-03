@@ -297,40 +297,47 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                       <TableRow key={r.key}>
                         <TableCell className="max-w-[260px] truncate" title={r.pa.product.stockName}>
                           {r.pa.product.stockName}
-                          {r.match.example_vendor && (
+                          {r.match?.example_vendor && (
                             <div className="text-xs text-muted-foreground truncate">
                               vs {r.match.example_vendor}: {r.match.example_name}
                             </div>
                           )}
+                          {!r.matched && (
+                            <div className="text-xs text-muted-foreground">
+                              {r.processed ? "No match found" : "Not yet processed"}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">{fmtAUD(r.ourPrice)}</TableCell>
-                        <TableCell className="text-right">{fmtAUD(r.match.avg_price)}</TableCell>
+                        <TableCell className="text-right">{r.match ? fmtAUD(r.match.avg_price) : "—"}</TableCell>
                         <TableCell className="text-right text-xs text-muted-foreground">
-                          {fmtAUD(r.match.min_price)}–{fmtAUD(r.match.max_price)}
+                          {r.match ? `${fmtAUD(r.match.min_price)}–${fmtAUD(r.match.max_price)}` : "—"}
                         </TableCell>
-                        <TableCell className={"text-right font-medium " + (r.priceDeltaPct > 2 ? "text-red-600" : r.priceDeltaPct < -2 ? "text-green-700" : "")}>
-                          {r.priceDeltaPct > 0 ? "+" : ""}{r.priceDeltaPct.toFixed(1)}%
+                        <TableCell className={"text-right font-medium " + (r.matched && r.priceDeltaPct > 2 ? "text-red-600" : r.matched && r.priceDeltaPct < -2 ? "text-green-700" : "")}>
+                          {r.matched ? `${r.priceDeltaPct > 0 ? "+" : ""}${r.priceDeltaPct.toFixed(1)}%` : "—"}
                         </TableCell>
                         <TableCell className="text-right">{fmtPct(r.ourMarginPct)}</TableCell>
                         <TableCell className="text-right">
-                          {r.ourCost > 0 ? fmtPct(r.competitorAvgMarginPct) : "—"}
+                          {r.matched && r.ourCost > 0 ? fmtPct(r.competitorAvgMarginPct) : "—"}
                         </TableCell>
-                        <TableCell className={"text-right font-medium " + (r.marginGapPct > 0 ? "text-green-700" : r.marginGapPct < 0 ? "text-red-600" : "")}>
-                          {r.ourCost > 0 ? `${r.marginGapPct > 0 ? "+" : ""}${r.marginGapPct.toFixed(1)}%` : "—"}
+                        <TableCell className={"text-right font-medium " + (r.matched && r.marginGapPct > 0 ? "text-green-700" : r.matched && r.marginGapPct < 0 ? "text-red-600" : "")}>
+                          {r.matched && r.ourCost > 0 ? `${r.marginGapPct > 0 ? "+" : ""}${r.marginGapPct.toFixed(1)}%` : "—"}
                         </TableCell>
                         <TableCell>
                           <Badge className={positionClass(r.position)}>{r.position}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge className={methodClass(r.match.match_method)} title={`Match method: ${METHOD_LABEL[r.match.match_method]}`}>
-                            {METHOD_LABEL[r.match.match_method]}
-                          </Badge>
+                          {r.match ? (
+                            <Badge className={methodClass(r.match.match_method)} title={`Match method: ${METHOD_LABEL[r.match.match_method]}`}>
+                              {METHOD_LABEL[r.match.match_method]}
+                            </Badge>
+                          ) : "—"}
                         </TableCell>
-                        <TableCell className={"text-right font-medium " + confidenceClass(r.match.confidence)}>
-                          {Math.round(r.match.confidence * 100)}%
+                        <TableCell className={"text-right font-medium " + (r.match ? confidenceClass(r.match.confidence) : "")}>
+                          {r.match ? `${Math.round(r.match.confidence * 100)}%` : "—"}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground text-right">
-                          {r.match.match_count}
+                          {r.match ? r.match.match_count : "—"}
                         </TableCell>
                       </TableRow>
                     ))}
