@@ -155,6 +155,10 @@ export async function processFosFile(file: File): Promise<ProcessResult | Proces
     // Header row height
     newWs["!rows"] = [{ hpt: 28 }];
 
+    // Force APN (col 2) and PDE (col 3) to be stored as text so Excel does
+    // not coerce 13-digit barcodes into scientific notation.
+    forceTextColumns(newWs, [2, 3], 1, lastRow - 1);
+
     const outWb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(outWb, newWs, "Stock Report");
 
