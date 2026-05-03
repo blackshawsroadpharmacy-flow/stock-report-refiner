@@ -110,25 +110,28 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
     const out: Row[] = [];
     products.forEach((pa, idx) => {
       const key = productKey(pa.product, idx);
-      const match = comp.matches[key];
-      if (!match) return;
-      if (match.confidence < minConfidence) return;
+      const match = comp.matches[key] ?? null;
+      const processed = comp.processedKeys.has(key);
       const our = pa.product.sellPrice;
       const cost = pa.product.ws1Cost > 0 ? pa.product.ws1Cost : pa.product.avgCost;
       if (our <= 0) return;
+      const passesConfidence = !!match && match.confidence >= minConfidence;
       const ourMargin = pa.product.marginPct || (cost > 0 ? ((our - cost) / our) * 100 : 0);
-      const compMargin = cost > 0 && match.avg_price > 0
-        ? ((match.avg_price - cost) / match.avg_price) * 100
+      const compMargin = passesConfidence && cost > 0 && match!.avg_price > 0
+        ? ((match!.avg_price - cost) / match!.avg_price) * 100
         : 0;
       out.push({
-        key, pa, match,
+        key, pa,
+        match: passesConfidence ? match : null,
         ourPrice: our,
         ourCost: cost,
-        priceDeltaPct: ((our - match.avg_price) / match.avg_price) * 100,
+        priceDeltaPct: passesConfidence ? ((our - match!.avg_price) / match!.avg_price) * 100 : 0,
         ourMarginPct: ourMargin,
         competitorAvgMarginPct: compMargin,
         marginGapPct: ourMargin - compMargin,
-        position: position(our, match.min_price, match.avg_price, match.max_price),
+        position: passesConfidence ? position(our, match!.min_price, match!.avg_price, match!.max_price) : "—",
+        processed,
+        matched: passesConfidence,
       });
     });
     return out;
@@ -138,6 +141,9 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
     const s = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (s && !r.pa.product.stockName.toLowerCase().includes(s)) return false;
+      if (filter === "processed") return r.processed;
+      if (filter === "unprocessed") return !r.processed;
+      if (!r.matched) return false;
       if (filter === "above" && r.priceDeltaPct <= 2) return false;
       if (filter === "below" && r.priceDeltaPct >= -2) return false;
       if (filter === "match" && Math.abs(r.priceDeltaPct) > 2) return false;
