@@ -1,0 +1,192 @@
+import * as XLSX from "xlsx-js-style";
+import type { Product, ProductAnalysis } from "./fos-analyzer";
+import { productKey, type CompetitorMap } from "@/hooks/useCompetitorPricing";
+
+const C = {
+  navy: "10183F",
+  white: "FFFFFF",
+  greenLight: "D5F5E3",
+  redLight: "FADBD8",
+  amberLight: "FDEBD0",
+  grey: "F2F3F4",
+};
+
+const hdr = {
+  font: { name: "Arial", sz: 10, bold: true, color: { rgb: C.white } },
+  fill: { patternType: "solid", fgColor: { rgb: C.navy } },
+  alignment: { horizontal: "center", vertical: "center", wrapText: true },
+};
+const cell = (extra: any = {}) => ({
+  font: { name: "Arial", sz: 10 },
+  alignment: { vertical: "center", wrapText: false },
+  ...extra,
+});
+const num2 = "#,##0.00";
+const pct1 = "0.0%";
+const money = '"$"#,##0.00';
+
+const METHOD: Record<string, string> = {
+  pde: "APN",
+  name_exact: "Exact name",
+  name_fuzzy: "Fuzzy name",
+};
+
+export function exportCompetitorPricingXlsx(
+  products: ProductAnalysis[],
+  matches: CompetitorMap,
+  minConfidence: number,
+  fileBaseName: string,
+) {
+  const headers = [
+    "Stock Name", "APN", "Department", "SOH",
+    "Our Sell $", "Our Cost $", "Our Margin %",
+    "Match Method", "Confidence %", "Competitor Hits", "Vendors",
+    "Comp Min $", "Comp Avg $", "Comp Median $", "Comp Max $",
+    "Comp Margin %", "Margin Gap pp",
+    "Price Δ $", "Price Δ %", "Position",
+    "Cheapest Vendor", "Cheapest Listing",
+  ];
+
+  const rows: any[][] = [headers];
+  let matched = 0, above = 0, below = 0, atMkt = 0;
+  let sumDelta = 0, sumGap = 0;
+
+  for (let idx = 0; idx < products.length; idx++) {
+    const pa = products[idx];
+    const p: Product = pa.product;
+    const key = productKey(p, idx);
+    const m = matches[key];
+    const our = p.sellPrice;
+    const cost = p.ws1Cost > 0 ? p.ws1Cost : p.avgCost;
+    const ourMargin = p.marginPct > 0 ? p.marginPct / 100 : (cost > 0 && our > 0 ? (our - cost) / our : 0);
+
+    if (!m || m.confidence < minConfidence) {
+      rows.push([
+        p.stockName, p.apn, (p as any).department ?? "", p.soh,
+        our || "", cost || "", ourMargin || "",
+        m ? METHOD[m.match_method] : "No match",
+        m ? m.confidence : "",
+        m?.match_count ?? "", m?.vendor_count ?? "",
+        "", "", "", "", "", "", "", "", "",
+        m?.example_vendor ?? "", m?.example_name ?? "",
+      ]);
+      continue;
+    }
+
+    matched++;
+    const compMargin = cost > 0 && m.avg_price > 0 ? (m.avg_price - cost) / m.avg_price : 0;
+    const priceDelta = our - m.avg_price;
+    const priceDeltaPct = m.avg_price > 0 ? priceDelta / m.avg_price : 0;
+    const marginGapPp = (ourMargin - compMargin) * 100;
+    sumDelta += priceDeltaPct;
+    sumGap += marginGapPp;
+
+    let pos: string;
+    if (our <= m.min_price * 1.001) pos = "Cheapest";
+    else if (our >= m.max_price * 0.999) pos = "Most expensive";
+    else if (Math.abs(priceDeltaPct) <= 0.02) pos = "At market";
+    else pos = priceDeltaPct < 0 ? "Below avg" : "Above avg";
+
+    if (priceDeltaPct > 0.02) above++;
+    else if (priceDeltaPct < -0.02) below++;
+    else atMkt++;
+
+    rows.push([
+      p.stockName, p.apn, (p as any).department ?? "", p.soh,
+      our, cost, ourMargin,
+      METHOD[m.match_method], m.confidence,
+      m.match_count, m.vendor_count,
+      m.min_price, m.avg_price, m.median_price, m.max_price,
+      compMargin, marginGapPp,
+      priceDelta, priceDeltaPct, pos,
+      m.example_vendor ?? "", m.example_name ?? "",
+    ]);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Style header
+  for (let c = 0; c < headers.length; c++) {
+    const ref = XLSX.utils.encode_cell({ r: 0, c });
+    if (ws[ref]) ws[ref].s = hdr;
+  }
+
+  // Number formats + row tinting
+  const moneyCols = [4, 5, 11, 12, 13, 14, 17];
+  const pctCols = [6, 8, 15, 18];
+  const numCols = [3, 9, 10, 16];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const deltaPct = typeof row[18] === "number" ? row[18] : null;
+    let tint: string | undefined;
+    if (deltaPct !== null) {
+      if (deltaPct > 0.02) tint = C.redLight;
+      else if (deltaPct < -0.02) tint = C.greenLight;
+    }
+    for (let c = 0; c < headers.length; c++) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (!ws[ref]) continue;
+      const s: any = cell();
+      if (moneyCols.includes(c)) s.numFmt = money;
+      else if (pctCols.includes(c)) s.numFmt = pct1;
+      else if (numCols.includes(c)) s.numFmt = "#,##0";
+      else if (c === 16) s.numFmt = num2;
+      if (tint && c <= 19) s.fill = { patternType: "solid", fgColor: { rgb: tint } };
+      ws[ref].s = s;
+    }
+  }
+
+  ws["!cols"] = [
+    { wch: 38 }, { wch: 14 }, { wch: 14 }, { wch: 7 },
+    { wch: 11 }, { wch: 11 }, { wch: 11 },
+    { wch: 12 }, { wch: 11 }, { wch: 9 }, { wch: 8 },
+    { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 11 },
+    { wch: 12 }, { wch: 12 },
+    { wch: 11 }, { wch: 10 }, { wch: 14 },
+    { wch: 22 }, { wch: 38 },
+  ];
+  ws["!freeze"] = { xSplit: 1, ySplit: 1 };
+  if (rows.length > 1) {
+    ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length - 1, c: headers.length - 1 } }) };
+  }
+
+  // Summary sheet
+  const totalProducts = products.length;
+  const avgDelta = matched ? sumDelta / matched : 0;
+  const avgGap = matched ? sumGap / matched : 0;
+  const summary: any[][] = [
+    ["Competitor Pricing — Summary"],
+    [],
+    ["Generated", new Date().toLocaleString()],
+    ["Min confidence threshold", minConfidence],
+    [],
+    ["Total products in report", totalProducts],
+    ["Matched (≥ threshold)", matched],
+    ["Match rate", totalProducts ? matched / totalProducts : 0],
+    [],
+    ["Above market (>+2%)", above],
+    ["At market (±2%)", atMkt],
+    ["Below market (<-2%)", below],
+    [],
+    ["Avg price vs market", avgDelta],
+    ["Avg margin gap (pp)", avgGap],
+    [],
+    ["Notes"],
+    ["Competitor margin estimated using your wholesale cost (WS1, fallback Avg) as a proxy."],
+    ["Match methods: APN = exact barcode, Exact name = normalized exact, Fuzzy = trigram similarity."],
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(summary);
+  ws2["A1"].s = { font: { bold: true, sz: 14, color: { rgb: C.white } }, fill: { patternType: "solid", fgColor: { rgb: C.navy } } };
+  ws2["!cols"] = [{ wch: 32 }, { wch: 22 }];
+  ws2["B4"] && (ws2["B4"].z = pct1);
+  ws2["B8"] && (ws2["B8"].z = pct1);
+  ws2["B14"] && (ws2["B14"].z = pct1);
+  ws2["B15"] && (ws2["B15"].z = num2);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws2, "Summary");
+  XLSX.utils.book_append_sheet(wb, ws, "Competitor Pricing");
+
+  const ts = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `${fileBaseName}_competitor_pricing_${ts}.xlsx`);
+}
