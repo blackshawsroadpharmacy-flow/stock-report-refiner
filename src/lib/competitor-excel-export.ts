@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx-js-style";
 import type { Product, ProductAnalysis } from "./fos-analyzer";
 import { productKey, type CompetitorMap } from "@/hooks/useCompetitorPricing";
+import { supabase } from "@/integrations/supabase/client";
 
 const C = {
   navy: "10183F",
@@ -31,11 +32,76 @@ const METHOD: Record<string, string> = {
   name_fuzzy: "Fuzzy name",
 };
 
-export function exportCompetitorPricingXlsx(
+type VendorListing = {
+  key: string;
+  match_method: string;
+  confidence: number;
+  vendor: string | null;
+  competitor_product_name: string | null;
+  pde: string | null;
+  variant: string | null;
+  sell_price: number | null;
+  rrp: number | null;
+  product_type: string | null;
+  source: string | null;
+  similarity: number | null;
+};
+
+async function fetchVendorListings(
+  products: ProductAnalysis[],
+  matches: CompetitorMap,
+  minConfidence: number,
+  onProgress?: (done: number, total: number) => void,
+): Promise<VendorListing[]> {
+  const queries = products
+    .map((pa, idx) => ({ idx, pa, key: productKey(pa.product, idx) }))
+    .filter(({ key }) => {
+      const m = matches[key];
+      return m && m.confidence >= minConfidence;
+    })
+    .map(({ pa, key }) => ({
+      key,
+      apn: pa.product.apn || "",
+      name: pa.product.stockName || "",
+    }));
+
+  const all: VendorListing[] = [];
+  if (queries.length === 0) return all;
+
+  const CHUNK = 200;
+  const CONCURRENCY = 4;
+  const slices: typeof queries[] = [];
+  for (let i = 0; i < queries.length; i += CHUNK) slices.push(queries.slice(i, i + CHUNK));
+
+  let nextIdx = 0;
+  let done = 0;
+  const total = queries.length;
+
+  const runOne = async () => {
+    while (true) {
+      const idx = nextIdx++;
+      if (idx >= slices.length) return;
+      const slice = slices[idx];
+      const { data, error } = await supabase.rpc("list_competitor_listings", {
+        queries: slice as any,
+        max_per_product: 50,
+      });
+      if (error) throw error;
+      for (const row of (data as any[]) ?? []) all.push(row as VendorListing);
+      done += slice.length;
+      onProgress?.(done, total);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, slices.length) }, runOne));
+  return all;
+}
+
+export async function exportCompetitorPricingXlsx(
   products: ProductAnalysis[],
   matches: CompetitorMap,
   minConfidence: number,
   fileBaseName: string,
+  onProgress?: (stage: string, done?: number, total?: number) => void,
 ) {
   const headers = [
     "Stock Name", "APN", "Department", "SOH",
@@ -287,10 +353,114 @@ export function exportCompetitorPricingXlsx(
 
   ws2["!cols"] = [{ wch: 42 }, { wch: 38 }];
 
+  // ===== Vendor Listings sheet =====
+  onProgress?.("Fetching vendor listings…", 0, 0);
+  const listings = await fetchVendorListings(products, matches, minConfidence, (d, t) =>
+    onProgress?.("Fetching vendor listings…", d, t),
+  );
+
+  // Build a key -> stock name / APN / our price map for context
+  const ctx = new Map<string, { stockName: string; apn: string; ourPrice: number; ourCost: number }>();
+  products.forEach((pa, idx) => {
+    const k = productKey(pa.product, idx);
+    const cost = pa.product.ws1Cost > 0 ? pa.product.ws1Cost : pa.product.avgCost;
+    ctx.set(k, {
+      stockName: pa.product.stockName,
+      apn: pa.product.apn,
+      ourPrice: pa.product.sellPrice,
+      ourCost: cost,
+    });
+  });
+
+  const vHeaders = [
+    "Our Stock Name", "Our APN", "Our Sell $",
+    "Match Method", "Confidence %",
+    "Competitor Vendor", "Competitor Product", "Competitor PDE", "Variant",
+    "Competitor Sell $", "Competitor RRP $",
+    "vs Our $", "vs Our %",
+    "Product Type", "Source",
+  ];
+
+  // Sort: by our stock name, then competitor sell price ascending
+  listings.sort((a, b) => {
+    const an = ctx.get(a.key)?.stockName ?? "";
+    const bn = ctx.get(b.key)?.stockName ?? "";
+    if (an !== bn) return an.localeCompare(bn);
+    const ap = a.sell_price ?? Number.POSITIVE_INFINITY;
+    const bp = b.sell_price ?? Number.POSITIVE_INFINITY;
+    return ap - bp;
+  });
+
+  const vRows: any[][] = [vHeaders];
+  for (const l of listings) {
+    const c = ctx.get(l.key);
+    const our = c?.ourPrice ?? 0;
+    const comp = l.sell_price ?? 0;
+    const delta = comp > 0 && our > 0 ? our - comp : "";
+    const deltaPct = comp > 0 && our > 0 ? (our - comp) / comp : "";
+    vRows.push([
+      c?.stockName ?? "",
+      c?.apn ?? "",
+      our || "",
+      METHOD[l.match_method] ?? l.match_method,
+      l.confidence ?? "",
+      l.vendor ?? "",
+      l.competitor_product_name ?? "",
+      l.pde ?? "",
+      l.variant ?? "",
+      comp || "",
+      l.rrp ?? "",
+      delta,
+      deltaPct,
+      l.product_type ?? "",
+      l.source ?? "",
+    ]);
+  }
+
+  const ws3 = XLSX.utils.aoa_to_sheet(vRows);
+  for (let cIdx = 0; cIdx < vHeaders.length; cIdx++) {
+    const ref = XLSX.utils.encode_cell({ r: 0, c: cIdx });
+    if (ws3[ref]) ws3[ref].s = hdr;
+  }
+  const vMoneyCols = [2, 9, 10, 11];
+  const vPctCols = [4, 12];
+  for (let r = 1; r < vRows.length; r++) {
+    const row = vRows[r];
+    const dPct = typeof row[12] === "number" ? row[12] : null;
+    let tint: string | undefined;
+    if (dPct !== null) {
+      if (dPct > 0.02) tint = C.redLight;
+      else if (dPct < -0.02) tint = C.greenLight;
+    }
+    for (let cIdx = 0; cIdx < vHeaders.length; cIdx++) {
+      const ref = XLSX.utils.encode_cell({ r, c: cIdx });
+      if (!ws3[ref]) continue;
+      const s: any = cell();
+      if (vMoneyCols.includes(cIdx)) s.numFmt = money;
+      else if (vPctCols.includes(cIdx)) s.numFmt = pct1;
+      if (tint) s.fill = { patternType: "solid", fgColor: { rgb: tint } };
+      ws3[ref].s = s;
+    }
+  }
+  ws3["!cols"] = [
+    { wch: 38 }, { wch: 14 }, { wch: 11 },
+    { wch: 12 }, { wch: 11 },
+    { wch: 22 }, { wch: 38 }, { wch: 16 }, { wch: 12 },
+    { wch: 12 }, { wch: 11 },
+    { wch: 11 }, { wch: 10 },
+    { wch: 22 }, { wch: 16 },
+  ];
+  ws3["!freeze"] = { xSplit: 1, ySplit: 1 };
+  if (vRows.length > 1) {
+    ws3["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: vRows.length - 1, c: vHeaders.length - 1 } }) };
+  }
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws2, "Summary");
   XLSX.utils.book_append_sheet(wb, ws, "Competitor Pricing");
+  XLSX.utils.book_append_sheet(wb, ws3, "Vendor Listings");
 
+  onProgress?.("Writing file…");
   const ts = new Date().toISOString().slice(0, 10);
   XLSX.writeFile(wb, `${fileBaseName}_competitor_pricing_${ts}.xlsx`);
 }

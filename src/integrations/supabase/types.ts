@@ -64,6 +64,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      list_competitor_listings: {
+        Args: { max_per_product?: number; queries: Json }
+        Returns: {
+          competitor_product_name: string
+          confidence: number
+          key: string
+          match_method: string
+          pde: string
+          product_type: string
+          rrp: number
+          sell_price: number
+          similarity: number
+          source: string
+          variant: string
+          vendor: string
+        }[]
+      }
       match_competitor_prices: {
         Args: { queries: Json }
         Returns: {
