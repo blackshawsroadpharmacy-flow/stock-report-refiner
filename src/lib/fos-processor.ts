@@ -53,10 +53,13 @@ export async function processFosFile(file: File): Promise<ProcessResult | Proces
     const sheetName = wb.SheetNames[0];
     if (!sheetName) return { ok: false, error: "Workbook has no sheets." };
     const ws = wb.Sheets[sheetName];
+    // raw:true preserves full numeric precision for barcodes (column C, APN)
+    // and PDE (column D). Without it, large barcodes arrive as scientific
+    // notation strings ("9.89E+12") which breaks competitor matching.
+    // Dates are handled by cellDates:true and downstream parseDate().
     const rawRows: any[][] = XLSX.utils.sheet_to_json(ws, {
       header: 1,
-      raw: false,
-      dateNF: "dd/mm/yyyy",
+      raw: true,
       blankrows: true,
       defval: null,
     });
