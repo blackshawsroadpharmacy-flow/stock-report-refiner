@@ -4,6 +4,7 @@
 import * as XLSX from "xlsx-js-style";
 import { scoreProduct, bandForScore, BAND_COLORS } from "./scoringEngine";
 import { rowToProduct, type Product } from "./fos-analyzer";
+import { forceTextColumns } from "./barcode-utils";
 
 // ---------- Colour palette ----------
 const C = {
