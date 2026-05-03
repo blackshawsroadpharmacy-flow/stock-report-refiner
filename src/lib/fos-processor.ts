@@ -85,7 +85,7 @@ export async function processFosFile(file: File): Promise<ProcessResult | Proces
       };
     }
     const apnCell = firstRow[2];
-    const apnStr = apnCell == null ? "" : String(apnCell);
+    const apnStr = normalizeBarcode(apnCell);
     if (!/\d/.test(apnStr)) {
       return {
         ok: false,
@@ -93,11 +93,14 @@ export async function processFosFile(file: File): Promise<ProcessResult | Proces
       };
     }
 
-    // Normalize each row to 22 columns
+    // Normalize each row to 22 columns and coerce APN/PDE to clean text strings
     const normalized = dataRows.map((row) => {
       const r = Array.isArray(row) ? [...row] : [];
       while (r.length < HEADERS.length) r.push(null);
-      return r.slice(0, HEADERS.length);
+      const out = r.slice(0, HEADERS.length);
+      out[2] = normalizeBarcode(out[2]); // APN
+      out[3] = normalizeBarcode(out[3]); // PDE / SKU
+      return out;
     });
 
     const outputData = [HEADERS, ...normalized];
