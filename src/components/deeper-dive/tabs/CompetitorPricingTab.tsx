@@ -79,7 +79,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
   const productList = useMemo(() => products.map((p) => p.product), [products]);
   const comp = useCompetitorPricing(productList);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "above" | "below" | "match">("all");
+  const [filter, setFilter] = useState<"all" | "above" | "below" | "match" | "processed" | "unprocessed">("all");
   const [minConfidence, setMinConfidence] = useConfidenceThreshold();
   const [exportStatus, setExportStatus] = useState<string | null>(null);
 
