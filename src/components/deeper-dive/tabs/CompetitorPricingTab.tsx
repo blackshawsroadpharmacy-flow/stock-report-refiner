@@ -242,10 +242,12 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => exportCompetitorPricingXlsx(products, comp.matches, minConfidence, "deeper_dive")}
+                    onClick={handleExportXlsx}
+                    disabled={exportStatus !== null}
                     className="gap-1"
                   >
-                    <Download className="h-4 w-4" /> Export Excel
+                    <Download className="h-4 w-4" />
+                    {exportStatus ?? "Export Excel"}
                   </Button>
                 </div>
               </div>
