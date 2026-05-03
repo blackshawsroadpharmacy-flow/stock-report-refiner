@@ -185,7 +185,7 @@ export async function exportCompetitorPricingXlsx(
     else atMkt++;
 
     rows.push([
-      p.stockName, p.apn, (p as any).department ?? "", p.soh,
+      p.stockName, normalizeBarcode(p.apn), (p as any).department ?? "", p.soh,
       our, cost, ourMargin,
       METHOD[m.match_method], m.confidence,
       m.match_count, m.vendor_count,
