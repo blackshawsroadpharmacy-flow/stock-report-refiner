@@ -13,6 +13,10 @@ import {
   useCompetitorPricing,
   type CompetitorMatch,
 } from "@/hooks/useCompetitorPricing";
+import {
+  CONFIDENCE_OPTIONS,
+  useConfidenceThreshold,
+} from "@/hooks/useConfidenceThreshold";
 
 type Row = {
   key: string;
@@ -71,6 +75,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
   const comp = useCompetitorPricing(productList);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "above" | "below" | "match">("all");
+  const [minConfidence, setMinConfidence] = useConfidenceThreshold();
 
   const rows = useMemo<Row[]>(() => {
     if (comp.status !== "success") return [];
@@ -79,6 +84,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
       const key = productKey(pa.product, idx);
       const match = comp.matches[key];
       if (!match) return;
+      if (match.confidence < minConfidence) return;
       const our = pa.product.sellPrice;
       const cost = pa.product.ws1Cost > 0 ? pa.product.ws1Cost : pa.product.avgCost;
       if (our <= 0) return;
@@ -98,7 +104,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
       });
     });
     return out;
-  }, [products, comp]);
+  }, [products, comp, minConfidence]);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -142,7 +148,10 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
           {comp.status === "success" && (
             <>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm mb-4">
-                <Stat label="Matched" value={`${comp.matchedCount} / ${comp.totalCount}`} />
+                <Stat
+                  label={minConfidence > 0 ? `Matched ≥${Math.round(minConfidence * 100)}%` : "Matched"}
+                  value={`${rows.length} / ${comp.totalCount}`}
+                />
                 <Stat label="Above market" value={String(stats?.above ?? 0)} tone="warn" />
                 <Stat label="At market" value={String(stats?.atMarket ?? 0)} />
                 <Stat label="Below market" value={String(stats?.below ?? 0)} tone="good" />
@@ -173,6 +182,21 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                     {f === "all" ? "All" : f === "above" ? "Above market" : f === "below" ? "Below market" : "At market"}
                   </button>
                 ))}
+                <div className="ml-auto flex items-center gap-2">
+                  <label htmlFor="conf-threshold" className="text-xs text-muted-foreground">
+                    Min confidence
+                  </label>
+                  <select
+                    id="conf-threshold"
+                    value={minConfidence}
+                    onChange={(e) => setMinConfidence(Number(e.target.value))}
+                    className="text-xs border rounded-md px-2 py-1 bg-background"
+                  >
+                    {CONFIDENCE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="border rounded-md">
                 <Table>
