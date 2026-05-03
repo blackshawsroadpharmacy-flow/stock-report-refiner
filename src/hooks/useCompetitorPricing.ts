@@ -50,6 +50,19 @@ export const productKey = (p: Product, idx: number) =>
 
 const EMPTY_METHODS: MethodBreakdown = { pde: 0, name_exact: 0, name_fuzzy: 0 };
 
+const RPC_TIMEOUT_MS = 15_000;
+const MAX_RETRIES = 2;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error(`RPC timed out after ${ms}ms`)), ms);
+    promise.then(
+      (val) => { clearTimeout(id); resolve(val); },
+      (err) => { clearTimeout(id); reject(err); },
+    );
+  });
+}
+
 const idleState = (): CompetitorState => ({
   status: "idle",
   matches: {},
@@ -122,12 +135,28 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
             if (idx >= slices.length) return;
             const slice = slices[idx];
             const chunkStart = performance.now();
-            const { data, error } = await supabase.rpc("match_competitor_prices", {
-              queries: slice as any,
-            });
+            let lastErr: any;
+            let data: any;
+            for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+              if (token.cancelled) return;
+              try {
+                const result = await withTimeout(
+                  supabase.rpc("match_competitor_prices", { queries: slice as any }),
+                  RPC_TIMEOUT_MS,
+                );
+                data = (result as any)?.data;
+                break; // success
+              } catch (e: any) {
+                lastErr = e;
+                if (attempt < MAX_RETRIES) {
+                  // Exponential back-off: 500ms, 1000ms
+                  await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+                }
+              }
+            }
+            if (data == null && lastErr != null) throw lastErr;
             const chunkMs = performance.now() - chunkStart;
             if (token.cancelled) return;
-            if (error) throw error;
             for (const row of (data as any[]) ?? []) {
               const method = row.match_method as CompetitorMatch["match_method"];
               matches[row.key] = {
