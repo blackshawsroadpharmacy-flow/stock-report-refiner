@@ -75,6 +75,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
   const comp = useCompetitorPricing(productList);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "above" | "below" | "match">("all");
+  const [minConfidence, setMinConfidence] = useConfidenceThreshold();
 
   const rows = useMemo<Row[]>(() => {
     if (comp.status !== "success") return [];
