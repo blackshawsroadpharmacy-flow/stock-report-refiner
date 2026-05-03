@@ -26,14 +26,16 @@ import { exportCompetitorPricingCsv } from "@/lib/competitor-csv-export";
 type Row = {
   key: string;
   pa: ProductAnalysis;
-  match: CompetitorMatch;
+  match: CompetitorMatch | null;
   ourPrice: number;
   ourCost: number;
   priceDeltaPct: number; // (ours - avg) / avg
   ourMarginPct: number;
   competitorAvgMarginPct: number; // (avg - ourCost)/avg
   marginGapPct: number; // ours - competitor
-  position: "Cheapest" | "Below avg" | "At market" | "Above avg" | "Most expensive";
+  position: "Cheapest" | "Below avg" | "At market" | "Above avg" | "Most expensive" | "—";
+  processed: boolean;
+  matched: boolean;
 };
 
 function position(our: number, min: number, avg: number, max: number): Row["position"] {
@@ -51,6 +53,7 @@ function positionClass(p: Row["position"]) {
     case "At market": return "bg-slate-500";
     case "Above avg": return "bg-amber-500";
     case "Most expensive": return "bg-red-600";
+    case "—": return "bg-muted text-muted-foreground";
   }
 }
 
@@ -79,7 +82,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
   const productList = useMemo(() => products.map((p) => p.product), [products]);
   const comp = useCompetitorPricing(productList);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "above" | "below" | "match">("all");
+  const [filter, setFilter] = useState<"all" | "above" | "below" | "match" | "processed" | "unprocessed">("all");
   const [minConfidence, setMinConfidence] = useConfidenceThreshold();
   const [exportStatus, setExportStatus] = useState<string | null>(null);
 
@@ -108,25 +111,28 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
     const out: Row[] = [];
     products.forEach((pa, idx) => {
       const key = productKey(pa.product, idx);
-      const match = comp.matches[key];
-      if (!match) return;
-      if (match.confidence < minConfidence) return;
+      const match = comp.matches[key] ?? null;
+      const processed = comp.processedKeys.has(key);
       const our = pa.product.sellPrice;
       const cost = pa.product.ws1Cost > 0 ? pa.product.ws1Cost : pa.product.avgCost;
       if (our <= 0) return;
+      const passesConfidence = !!match && match.confidence >= minConfidence;
       const ourMargin = pa.product.marginPct || (cost > 0 ? ((our - cost) / our) * 100 : 0);
-      const compMargin = cost > 0 && match.avg_price > 0
-        ? ((match.avg_price - cost) / match.avg_price) * 100
+      const compMargin = passesConfidence && cost > 0 && match!.avg_price > 0
+        ? ((match!.avg_price - cost) / match!.avg_price) * 100
         : 0;
       out.push({
-        key, pa, match,
+        key, pa,
+        match: passesConfidence ? match : null,
         ourPrice: our,
         ourCost: cost,
-        priceDeltaPct: ((our - match.avg_price) / match.avg_price) * 100,
+        priceDeltaPct: passesConfidence ? ((our - match!.avg_price) / match!.avg_price) * 100 : 0,
         ourMarginPct: ourMargin,
         competitorAvgMarginPct: compMargin,
         marginGapPct: ourMargin - compMargin,
-        position: position(our, match.min_price, match.avg_price, match.max_price),
+        position: passesConfidence ? position(our, match!.min_price, match!.avg_price, match!.max_price) : "—",
+        processed,
+        matched: passesConfidence,
       });
     });
     return out;
@@ -136,6 +142,9 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
     const s = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (s && !r.pa.product.stockName.toLowerCase().includes(s)) return false;
+      if (filter === "processed") return r.processed;
+      if (filter === "unprocessed") return !r.processed;
+      if (!r.matched) return false;
       if (filter === "above" && r.priceDeltaPct <= 2) return false;
       if (filter === "below" && r.priceDeltaPct >= -2) return false;
       if (filter === "match" && Math.abs(r.priceDeltaPct) > 2) return false;
@@ -217,7 +226,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                   onChange={(e) => setSearch(e.target.value)}
                   className="max-w-xs"
                 />
-                {(["all","above","below","match"] as const).map((f) => (
+                {(["all","above","below","match","processed","unprocessed"] as const).map((f) => (
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
@@ -228,7 +237,12 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                         : "bg-background hover:bg-muted")
                     }
                   >
-                    {f === "all" ? "All" : f === "above" ? "Above market" : f === "below" ? "Below market" : "At market"}
+                    {f === "all" ? "All"
+                      : f === "above" ? "Above market"
+                      : f === "below" ? "Below market"
+                      : f === "match" ? "At market"
+                      : f === "processed" ? `Processed (${comp.processedCount.toLocaleString()})`
+                      : `Unprocessed (${(comp.totalCount - comp.processedCount).toLocaleString()})`}
                   </button>
                 ))}
                 <div className="ml-auto flex items-center gap-2">
@@ -288,40 +302,47 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                       <TableRow key={r.key}>
                         <TableCell className="max-w-[260px] truncate" title={r.pa.product.stockName}>
                           {r.pa.product.stockName}
-                          {r.match.example_vendor && (
+                          {r.match?.example_vendor && (
                             <div className="text-xs text-muted-foreground truncate">
                               vs {r.match.example_vendor}: {r.match.example_name}
                             </div>
                           )}
+                          {!r.matched && (
+                            <div className="text-xs text-muted-foreground">
+                              {r.processed ? "No match found" : "Not yet processed"}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">{fmtAUD(r.ourPrice)}</TableCell>
-                        <TableCell className="text-right">{fmtAUD(r.match.avg_price)}</TableCell>
+                        <TableCell className="text-right">{r.match ? fmtAUD(r.match.avg_price) : "—"}</TableCell>
                         <TableCell className="text-right text-xs text-muted-foreground">
-                          {fmtAUD(r.match.min_price)}–{fmtAUD(r.match.max_price)}
+                          {r.match ? `${fmtAUD(r.match.min_price)}–${fmtAUD(r.match.max_price)}` : "—"}
                         </TableCell>
-                        <TableCell className={"text-right font-medium " + (r.priceDeltaPct > 2 ? "text-red-600" : r.priceDeltaPct < -2 ? "text-green-700" : "")}>
-                          {r.priceDeltaPct > 0 ? "+" : ""}{r.priceDeltaPct.toFixed(1)}%
+                        <TableCell className={"text-right font-medium " + (r.matched && r.priceDeltaPct > 2 ? "text-red-600" : r.matched && r.priceDeltaPct < -2 ? "text-green-700" : "")}>
+                          {r.matched ? `${r.priceDeltaPct > 0 ? "+" : ""}${r.priceDeltaPct.toFixed(1)}%` : "—"}
                         </TableCell>
                         <TableCell className="text-right">{fmtPct(r.ourMarginPct)}</TableCell>
                         <TableCell className="text-right">
-                          {r.ourCost > 0 ? fmtPct(r.competitorAvgMarginPct) : "—"}
+                          {r.matched && r.ourCost > 0 ? fmtPct(r.competitorAvgMarginPct) : "—"}
                         </TableCell>
-                        <TableCell className={"text-right font-medium " + (r.marginGapPct > 0 ? "text-green-700" : r.marginGapPct < 0 ? "text-red-600" : "")}>
-                          {r.ourCost > 0 ? `${r.marginGapPct > 0 ? "+" : ""}${r.marginGapPct.toFixed(1)}%` : "—"}
+                        <TableCell className={"text-right font-medium " + (r.matched && r.marginGapPct > 0 ? "text-green-700" : r.matched && r.marginGapPct < 0 ? "text-red-600" : "")}>
+                          {r.matched && r.ourCost > 0 ? `${r.marginGapPct > 0 ? "+" : ""}${r.marginGapPct.toFixed(1)}%` : "—"}
                         </TableCell>
                         <TableCell>
                           <Badge className={positionClass(r.position)}>{r.position}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge className={methodClass(r.match.match_method)} title={`Match method: ${METHOD_LABEL[r.match.match_method]}`}>
-                            {METHOD_LABEL[r.match.match_method]}
-                          </Badge>
+                          {r.match ? (
+                            <Badge className={methodClass(r.match.match_method)} title={`Match method: ${METHOD_LABEL[r.match.match_method]}`}>
+                              {METHOD_LABEL[r.match.match_method]}
+                            </Badge>
+                          ) : "—"}
                         </TableCell>
-                        <TableCell className={"text-right font-medium " + confidenceClass(r.match.confidence)}>
-                          {Math.round(r.match.confidence * 100)}%
+                        <TableCell className={"text-right font-medium " + (r.match ? confidenceClass(r.match.confidence) : "")}>
+                          {r.match ? `${Math.round(r.match.confidence * 100)}%` : "—"}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground text-right">
-                          {r.match.match_count}
+                          {r.match ? r.match.match_count : "—"}
                         </TableCell>
                       </TableRow>
                     ))}

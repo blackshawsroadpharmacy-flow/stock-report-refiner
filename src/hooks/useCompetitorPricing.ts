@@ -24,6 +24,7 @@ export type CompetitorState = {
   matchedCount: number;
   totalCount: number;
   processedCount: number;
+  processedKeys: Set<string>;
 };
 
 export type CompetitorPricingResult = CompetitorState & {
@@ -41,6 +42,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
     matchedCount: 0,
     totalCount: 0,
     processedCount: 0,
+    processedKeys: new Set(),
   });
   const cancelRef = useRef<{ cancelled: boolean } | null>(null);
 
@@ -55,12 +57,12 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
 
   useEffect(() => {
     if (!products || products.length === 0) {
-      setState({ status: "idle", matches: {}, matchedCount: 0, totalCount: 0, processedCount: 0 });
+      setState({ status: "idle", matches: {}, matchedCount: 0, totalCount: 0, processedCount: 0, processedKeys: new Set() });
       return;
     }
     const token = { cancelled: false };
     cancelRef.current = token;
-    setState({ status: "loading", matches: {}, matchedCount: 0, totalCount: products.length, processedCount: 0 });
+    setState({ status: "loading", matches: {}, matchedCount: 0, totalCount: products.length, processedCount: 0, processedKeys: new Set() });
 
     (async () => {
       try {
@@ -73,6 +75,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
         const CHUNK = 300;
         const CONCURRENCY = 5;
         const matches: CompetitorMap = {};
+        const processedKeys = new Set<string>();
         const slices: typeof queries[] = [];
         for (let i = 0; i < queries.length; i += CHUNK) slices.push(queries.slice(i, i + CHUNK));
 
@@ -104,6 +107,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
                 confidence: row.confidence == null ? 0 : Number(row.confidence),
               };
             }
+            for (const q of slice) processedKeys.add(q.key);
             processed += slice.length;
             if (!token.cancelled) {
               setState((s) => ({
@@ -113,6 +117,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
                 matchedCount: Object.keys(matches).length,
                 processedCount: processed,
                 totalCount: products.length,
+                processedKeys: new Set(processedKeys),
               }));
             }
           }
@@ -126,6 +131,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
             matchedCount: Object.keys(matches).length,
             totalCount: products.length,
             processedCount: processed,
+            processedKeys,
           });
           return;
         }
@@ -135,6 +141,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
           matchedCount: Object.keys(matches).length,
           totalCount: products.length,
           processedCount: products.length,
+          processedKeys,
         });
       } catch (e: any) {
         if (token.cancelled) return;
@@ -145,6 +152,7 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
           matchedCount: 0,
           totalCount: products.length,
           processedCount: 0,
+          processedKeys: new Set(),
         });
       }
     })();
