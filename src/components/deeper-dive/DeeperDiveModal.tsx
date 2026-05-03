@@ -20,6 +20,9 @@ import { MarketIntelTab } from "./tabs/MarketIntelTab";
 import { ComplianceTab } from "./tabs/ComplianceTab";
 import { StrategicAnalystTab } from "./tabs/StrategicAnalystTab";
 import { CompetitorPricingTab } from "./tabs/CompetitorPricingTab";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { exportDeeperDiveXlsx } from "@/lib/deeper-dive-excel-export";
 
 export function DeeperDiveModal({
   open,
@@ -40,6 +43,18 @@ export function DeeperDiveModal({
   );
   const tga = useTGARecallCheck(productNames, open);
   const [tab, setTab] = useState("profit");
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      await exportDeeperDiveXlsx(result);
+    } catch (e) {
+      console.error("Deeper Dive export failed:", e);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const tgaUrgent =
     tga.status === "success" && tga.result?.ok && tga.result.recallsFound;
@@ -48,7 +63,13 @@ export function DeeperDiveModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-screen h-screen max-w-none rounded-none p-0 flex flex-col gap-0 sm:rounded-none">
         <DialogHeader className="px-6 py-4 border-b shrink-0">
-          <DialogTitle className="text-xl">🔍 Deeper Dive Analysis</DialogTitle>
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle className="text-xl">🔍 Deeper Dive Analysis</DialogTitle>
+            <Button size="sm" variant="outline" onClick={handleExport} disabled={exporting} className="gap-1">
+              <Download className="h-4 w-4" />
+              {exporting ? "Building Excel…" : "Export Excel Spreadsheet"}
+            </Button>
+          </div>
           {tgaUrgent && (
             <Alert variant="destructive" className="mt-2">
               <AlertTitle>🚨 URGENT: Potential TGA recall match found</AlertTitle>
