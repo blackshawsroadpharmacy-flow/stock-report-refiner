@@ -18,12 +18,16 @@ export type CompetitorMatch = {
 export type CompetitorMap = Record<string, CompetitorMatch>;
 
 export type CompetitorState = {
-  status: "idle" | "loading" | "success" | "error";
+  status: "idle" | "loading" | "success" | "error" | "cancelled";
   matches: CompetitorMap;
   error?: string;
   matchedCount: number;
   totalCount: number;
   processedCount: number;
+};
+
+export type CompetitorPricingResult = CompetitorState & {
+  cancel: () => void;
 };
 
 /** Build the canonical row key (must match how the UI looks rows up). */
