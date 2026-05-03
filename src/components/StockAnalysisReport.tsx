@@ -8,6 +8,7 @@ import {
   fmtDate,
 } from "@/lib/fos-analyzer";
 import { DeeperDiveModal } from "./deeper-dive/DeeperDiveModal";
+import { useCompetitorPricing, productKey } from "@/hooks/useCompetitorPricing";
 
 // All styles live in this string so the downloaded HTML is fully self-contained.
 export const REPORT_CSS = `
@@ -236,11 +237,24 @@ function Scorecard({ result }: { result: AnalysisResult }) {
     () => [...result.products].sort((a, b) => a.score - b.score),
     [result],
   );
+  const productList = useMemo(() => result.products.map((p) => p.product), [result]);
+  const comp = useCompetitorPricing(productList);
+  // Build a key→original-index map so the competitor lookup matches
+  const indexByPa = useMemo(() => {
+    const m = new Map<ProductAnalysis, number>();
+    result.products.forEach((pa, i) => m.set(pa, i));
+    return m;
+  }, [result]);
+
   return (
     <section>
       <h2>📋 Section 7: Full Product Scorecard</h2>
       <div className="section-summary">
         Sorted worst-first. {sorted.length} products analysed.
+        {comp.status === "success" && (
+          <> · <strong>{comp.matchedCount}</strong> matched to competitor pricing.</>
+        )}
+        {comp.status === "loading" && <> · Loading competitor pricing…</>}
       </div>
       <table className="scorecard">
         <thead>
@@ -248,32 +262,55 @@ function Scorecard({ result }: { result: AnalysisResult }) {
             <th>Product</th>
             <th>SOH</th>
             <th>Sell $</th>
+            <th>Comp Avg $</th>
+            <th>vs Market</th>
             <th>Margin %</th>
+            <th>Margin Gap</th>
             <th>GP $</th>
             <th>Qty Sold</th>
-            <th>Days Since Sale</th>
             <th>Score</th>
             <th>Status</th>
           </tr>
         </thead>
         <tbody>
-          {sorted.map((pa, i) => (
-            <tr key={i}>
-              <td>{pa.product.stockName || "(no name)"}</td>
-              <td className="num">{pa.product.soh}</td>
-              <td className="num">{fmtAUD(pa.product.sellPrice)}</td>
-              <td className="num">{fmtPct(pa.product.marginPct)}</td>
-              <td className="num">{fmtAUD(pa.product.salesGP)}</td>
-              <td className="num">{pa.product.qtySold}</td>
-              <td className="num">{pa.product.daysSinceSold ?? "—"}</td>
-              <td className="num">{pa.score}</td>
-              <td>
-                <span className={`score-pill ${bandClass(pa.scoreBand)}`}>
-                  {pa.scoreBand}
-                </span>
-              </td>
-            </tr>
-          ))}
+          {sorted.map((pa, i) => {
+            const idx = indexByPa.get(pa);
+            const m = idx !== undefined ? comp.matches[productKey(pa.product, idx)] : undefined;
+            const our = pa.product.sellPrice;
+            const cost = pa.product.ws1Cost > 0 ? pa.product.ws1Cost : pa.product.avgCost;
+            const priceDelta = m && our > 0 ? ((our - m.avg_price) / m.avg_price) * 100 : null;
+            const compMargin = m && cost > 0 && m.avg_price > 0 ? ((m.avg_price - cost) / m.avg_price) * 100 : null;
+            const marginGap = compMargin !== null ? pa.product.marginPct - compMargin : null;
+            return (
+              <tr key={i}>
+                <td>{pa.product.stockName || "(no name)"}</td>
+                <td className="num">{pa.product.soh}</td>
+                <td className="num">{fmtAUD(our)}</td>
+                <td className="num">{m ? fmtAUD(m.avg_price) : "—"}</td>
+                <td className="num" style={{
+                  color: priceDelta === null ? undefined : priceDelta > 2 ? "#c0392b" : priceDelta < -2 ? "#27ae60" : undefined,
+                  fontWeight: priceDelta !== null && Math.abs(priceDelta) > 2 ? 600 : undefined,
+                }}>
+                  {priceDelta === null ? "—" : `${priceDelta > 0 ? "+" : ""}${priceDelta.toFixed(1)}%`}
+                </td>
+                <td className="num">{fmtPct(pa.product.marginPct)}</td>
+                <td className="num" style={{
+                  color: marginGap === null ? undefined : marginGap > 0 ? "#27ae60" : marginGap < 0 ? "#c0392b" : undefined,
+                  fontWeight: marginGap !== null && Math.abs(marginGap) > 2 ? 600 : undefined,
+                }}>
+                  {marginGap === null ? "—" : `${marginGap > 0 ? "+" : ""}${marginGap.toFixed(1)}%`}
+                </td>
+                <td className="num">{fmtAUD(pa.product.salesGP)}</td>
+                <td className="num">{pa.product.qtySold}</td>
+                <td className="num">{pa.score}</td>
+                <td>
+                  <span className={`score-pill ${bandClass(pa.scoreBand)}`}>
+                    {pa.scoreBand}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </section>

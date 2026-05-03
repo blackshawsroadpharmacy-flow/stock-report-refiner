@@ -19,6 +19,7 @@ import { ActionCardTab } from "./tabs/ActionCardTab";
 import { MarketIntelTab } from "./tabs/MarketIntelTab";
 import { ComplianceTab } from "./tabs/ComplianceTab";
 import { StrategicAnalystTab } from "./tabs/StrategicAnalystTab";
+import { CompetitorPricingTab } from "./tabs/CompetitorPricingTab";
 
 export function DeeperDiveModal({
   open,
@@ -63,6 +64,7 @@ export function DeeperDiveModal({
             <TabsTrigger value="capital">🧊 Capital Release</TabsTrigger>
             <TabsTrigger value="action">📋 Action Card</TabsTrigger>
             <TabsTrigger value="market">🌐 Market Intel</TabsTrigger>
+            <TabsTrigger value="competitors">💲 Competitor Pricing</TabsTrigger>
             <TabsTrigger value="compliance">🛡️ Compliance</TabsTrigger>
             <TabsTrigger value="analyst">✨ Strategic Analyst</TabsTrigger>
           </TabsList>
@@ -87,6 +89,9 @@ export function DeeperDiveModal({
               </TabsContent>
               <TabsContent value="market" className="mt-0">
                 <MarketIntelTab data={ds.cleanedData} />
+              </TabsContent>
+              <TabsContent value="competitors" className="mt-0">
+                <CompetitorPricingTab products={result.products} />
               </TabsContent>
               <TabsContent value="compliance" className="mt-0">
                 <ComplianceTab dataset={ds} tga={tga} />
