@@ -45,6 +45,27 @@ function positionClass(p: Row["position"]) {
   }
 }
 
+const METHOD_LABEL: Record<CompetitorMatch["match_method"], string> = {
+  pde: "APN",
+  name_exact: "Exact name",
+  name_fuzzy: "Fuzzy name",
+};
+
+function methodClass(m: CompetitorMatch["match_method"]) {
+  switch (m) {
+    case "pde": return "bg-green-600";
+    case "name_exact": return "bg-emerald-500";
+    case "name_fuzzy": return "bg-amber-500";
+  }
+}
+
+function confidenceClass(c: number) {
+  if (c >= 0.95) return "text-green-700";
+  if (c >= 0.75) return "text-emerald-600";
+  if (c >= 0.6) return "text-amber-600";
+  return "text-red-600";
+}
+
 export function CompetitorPricingTab({ products }: { products: ProductAnalysis[] }) {
   const productList = useMemo(() => products.map((p) => p.product), [products]);
   const comp = useCompetitorPricing(productList);
@@ -166,7 +187,9 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                       <TableHead className="text-right">Comp margin*</TableHead>
                       <TableHead className="text-right">Margin gap</TableHead>
                       <TableHead>Position</TableHead>
-                      <TableHead className="text-xs">Match</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead className="text-right">Confidence</TableHead>
+                      <TableHead className="text-xs text-right">Hits</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -198,13 +221,21 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                         <TableCell>
                           <Badge className={positionClass(r.position)}>{r.position}</Badge>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {r.match.match_count}× ({r.match.match_method.replace("_", " ")})
+                        <TableCell>
+                          <Badge className={methodClass(r.match.match_method)} title={`Match method: ${METHOD_LABEL[r.match.match_method]}`}>
+                            {METHOD_LABEL[r.match.match_method]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className={"text-right font-medium " + confidenceClass(r.match.confidence)}>
+                          {Math.round(r.match.confidence * 100)}%
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground text-right">
+                          {r.match.match_count}
                         </TableCell>
                       </TableRow>
                     ))}
                     {filtered.length === 0 && (
-                      <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-6">No matches for this filter.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-6">No matches for this filter.</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
