@@ -21,6 +21,7 @@ import {
   useConfidenceThreshold,
 } from "@/hooks/useConfidenceThreshold";
 import { exportCompetitorPricingXlsx } from "@/lib/competitor-excel-export";
+import { exportCompetitorPricingCsv } from "@/lib/competitor-csv-export";
 
 type Row = {
   key: string;
