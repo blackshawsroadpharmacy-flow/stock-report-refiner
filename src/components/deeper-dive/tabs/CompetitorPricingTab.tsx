@@ -53,6 +53,7 @@ function positionClass(p: Row["position"]) {
     case "At market": return "bg-slate-500";
     case "Above avg": return "bg-amber-500";
     case "Most expensive": return "bg-red-600";
+    case "—": return "bg-muted text-muted-foreground";
   }
 }
 
