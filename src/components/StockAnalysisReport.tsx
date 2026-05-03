@@ -300,7 +300,8 @@ function Scorecard({ result }: { result: AnalysisResult }) {
         <tbody>
           {sorted.map((pa, i) => {
             const idx = indexByPa.get(pa);
-            const m = idx !== undefined ? comp.matches[productKey(pa.product, idx)] : undefined;
+            const rawMatch = idx !== undefined ? comp.matches[productKey(pa.product, idx)] : undefined;
+            const m = rawMatch && rawMatch.confidence >= minConfidence ? rawMatch : undefined;
             const our = pa.product.sellPrice;
             const cost = pa.product.ws1Cost > 0 ? pa.product.ws1Cost : pa.product.avgCost;
             const priceDelta = m && our > 0 ? ((our - m.avg_price) / m.avg_price) * 100 : null;
