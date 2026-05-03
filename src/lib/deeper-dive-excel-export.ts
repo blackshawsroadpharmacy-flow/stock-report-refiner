@@ -98,7 +98,7 @@ function productCols(): Col[] {
   return [
     { header: "Product", width: 42, get: (p: CleanedProduct) => p.stockName },
     { header: "Dept", width: 20, get: (p: CleanedProduct) => p.dept },
-    { header: "PDE/APN", width: 14, get: (p: CleanedProduct) => p.pde || p.apn || "" },
+    { header: "PDE/APN", width: 18, get: (p: CleanedProduct) => normalizeBarcode(p.pde || p.apn || "") },
     { header: "SOH", width: 8, fmt: int0, get: (p: CleanedProduct) => p.soh },
     { header: "Stock Value", width: 14, fmt: money, get: (p: CleanedProduct) => p.stockValue },
     { header: "Cost", width: 10, fmt: money, get: (p: CleanedProduct) => p.cost },
