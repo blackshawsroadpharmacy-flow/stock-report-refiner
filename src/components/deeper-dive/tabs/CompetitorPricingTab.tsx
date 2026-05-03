@@ -183,6 +183,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
                 </Button>
               </div>
               <Progress value={comp.totalCount ? (comp.processedCount / comp.totalCount) * 100 : 0} />
+              <TimingBreakdown comp={comp} />
               {rows.length > 0 && (
                 <div className="text-xs text-muted-foreground pt-2">Live preview of matches found so far ({rows.length}). Final stats appear once matching completes.</div>
               )}
@@ -194,6 +195,7 @@ export function CompetitorPricingTab({ products }: { products: ProductAnalysis[]
               <AlertDescription>
                 Stopped after processing {comp.processedCount.toLocaleString()} of {comp.totalCount.toLocaleString()} products.
                 Showing {comp.matchedCount.toLocaleString()} partial matches below.
+                <div className="mt-2"><TimingBreakdown comp={comp} /></div>
               </AlertDescription>
             </Alert>
           )}
@@ -370,6 +372,43 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "go
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={"font-semibold " + (tone === "good" ? "text-green-700" : tone === "warn" ? "text-amber-600" : "")}>
         {value}
+      </div>
+    </div>
+  );
+}
+
+function fmtMs(ms: number) {
+  if (!isFinite(ms) || ms <= 0) return "—";
+  if (ms < 1000) return `${ms.toFixed(0)} ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(1)}s`;
+  const m = Math.floor(s / 60);
+  const r = Math.round(s - m * 60);
+  return `${m}m ${r}s`;
+}
+
+function TimingBreakdown({ comp }: { comp: ReturnType<typeof useCompetitorPricing> }) {
+  const { methodCounts, elapsedMs, msPerProduct, lastChunkMs, lastChunkSize, lastChunkMsPerProduct, processedCount, totalCount } = comp;
+  const remaining = Math.max(0, totalCount - processedCount);
+  const eta = msPerProduct > 0 ? remaining * msPerProduct : 0;
+  return (
+    <div className="text-xs text-muted-foreground space-y-1">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <span>Elapsed: <strong className="text-foreground">{fmtMs(elapsedMs)}</strong></span>
+        <span>Per product: <strong className="text-foreground">{msPerProduct > 0 ? `${msPerProduct.toFixed(1)} ms` : "—"}</strong></span>
+        {comp.status === "loading" && remaining > 0 && (
+          <span>ETA: <strong className="text-foreground">{fmtMs(eta)}</strong></span>
+        )}
+        {lastChunkSize > 0 && (
+          <span>
+            Last batch: <strong className="text-foreground">{lastChunkSize}</strong> in {fmtMs(lastChunkMs)} ({lastChunkMsPerProduct.toFixed(1)} ms/product)
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2 pt-1">
+        <Badge className="bg-green-600">APN/PDE/Barcode: {methodCounts.pde.toLocaleString()}</Badge>
+        <Badge className="bg-emerald-500">Exact name: {methodCounts.name_exact.toLocaleString()}</Badge>
+        <Badge className="bg-amber-500">Fuzzy name: {methodCounts.name_fuzzy.toLocaleString()}</Badge>
       </div>
     </div>
   );
