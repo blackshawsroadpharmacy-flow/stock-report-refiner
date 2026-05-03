@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx-js-style";
 import type { Product, ProductAnalysis } from "./fos-analyzer";
 import { productKey, type CompetitorMap } from "@/hooks/useCompetitorPricing";
+import { supabase } from "@/integrations/supabase/client";
 
 const C = {
   navy: "10183F",
@@ -31,11 +32,76 @@ const METHOD: Record<string, string> = {
   name_fuzzy: "Fuzzy name",
 };
 
-export function exportCompetitorPricingXlsx(
+type VendorListing = {
+  key: string;
+  match_method: string;
+  confidence: number;
+  vendor: string | null;
+  competitor_product_name: string | null;
+  pde: string | null;
+  variant: string | null;
+  sell_price: number | null;
+  rrp: number | null;
+  product_type: string | null;
+  source: string | null;
+  similarity: number | null;
+};
+
+async function fetchVendorListings(
+  products: ProductAnalysis[],
+  matches: CompetitorMap,
+  minConfidence: number,
+  onProgress?: (done: number, total: number) => void,
+): Promise<VendorListing[]> {
+  const queries = products
+    .map((pa, idx) => ({ idx, pa, key: productKey(pa.product, idx) }))
+    .filter(({ key }) => {
+      const m = matches[key];
+      return m && m.confidence >= minConfidence;
+    })
+    .map(({ pa, key }) => ({
+      key,
+      apn: pa.product.apn || "",
+      name: pa.product.stockName || "",
+    }));
+
+  const all: VendorListing[] = [];
+  if (queries.length === 0) return all;
+
+  const CHUNK = 200;
+  const CONCURRENCY = 4;
+  const slices: typeof queries[] = [];
+  for (let i = 0; i < queries.length; i += CHUNK) slices.push(queries.slice(i, i + CHUNK));
+
+  let nextIdx = 0;
+  let done = 0;
+  const total = queries.length;
+
+  const runOne = async () => {
+    while (true) {
+      const idx = nextIdx++;
+      if (idx >= slices.length) return;
+      const slice = slices[idx];
+      const { data, error } = await supabase.rpc("list_competitor_listings", {
+        queries: slice as any,
+        max_per_product: 50,
+      });
+      if (error) throw error;
+      for (const row of (data as any[]) ?? []) all.push(row as VendorListing);
+      done += slice.length;
+      onProgress?.(done, total);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, slices.length) }, runOne));
+  return all;
+}
+
+export async function exportCompetitorPricingXlsx(
   products: ProductAnalysis[],
   matches: CompetitorMap,
   minConfidence: number,
   fileBaseName: string,
+  onProgress?: (stage: string, done?: number, total?: number) => void,
 ) {
   const headers = [
     "Stock Name", "APN", "Department", "SOH",
