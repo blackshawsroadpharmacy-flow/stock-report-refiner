@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx-js-style";
 import type { Product, ProductAnalysis } from "./fos-analyzer";
 import { productKey, type CompetitorMap } from "@/hooks/useCompetitorPricing";
-import { supabase } from "@/integrations/supabase/client";
+import { listCompetitorListings } from "./competitor-pricing.functions";
 import { forceTextColumns, normalizeBarcode } from "./barcode-utils";
 
 const C = {
@@ -83,11 +83,9 @@ async function fetchVendorListings(
       const idx = nextIdx++;
       if (idx >= slices.length) return;
       const slice = slices[idx];
-      const { data, error } = await supabase.rpc("list_competitor_listings", {
-        queries: slice as any,
-        max_per_product: 50,
+      const data = await listCompetitorListings({
+        data: { queries: slice, maxPerProduct: 50 },
       });
-      if (error) throw error;
       for (const row of (data as any[]) ?? []) all.push(row as VendorListing);
       done += slice.length;
       onProgress?.(done, total);
