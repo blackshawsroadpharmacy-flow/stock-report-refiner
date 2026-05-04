@@ -47,7 +47,7 @@ export type CompetitorPricingResult = CompetitorState & {
 
 /** Build the canonical row key (must match how the UI looks rows up). */
 export const productKey = (p: Product, idx: number) =>
-  `${idx}|${(p.apn || "").trim()}|${(p.stockName || "").trim()}`;
+  `${idx}|${normalizeBarcode(p.apn || "")}|${(p.stockName || "").trim()}`;
 
 const EMPTY_METHODS: MethodBreakdown = { pde: 0, name_exact: 0, name_fuzzy: 0 };
 
