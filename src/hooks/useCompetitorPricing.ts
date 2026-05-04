@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { matchCompetitorPrices } from "@/lib/competitor-pricing.functions";
+import { normalizeBarcode } from "@/lib/barcode-utils";
 import type { Product } from "@/lib/fos-analyzer";
 
 export type CompetitorMatch = {
@@ -46,7 +47,7 @@ export type CompetitorPricingResult = CompetitorState & {
 
 /** Build the canonical row key (must match how the UI looks rows up). */
 export const productKey = (p: Product, idx: number) =>
-  `${idx}|${(p.apn || "").trim()}|${(p.stockName || "").trim()}`;
+  `${idx}|${normalizeBarcode(p.apn || "")}|${(p.stockName || "").trim()}`;
 
 const EMPTY_METHODS: MethodBreakdown = { pde: 0, name_exact: 0, name_fuzzy: 0 };
 
@@ -112,8 +113,8 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
       try {
         const queries = products.map((p, i) => ({
           key: productKey(p, i),
-          apn: p.apn || "",
-          pde: p.pde || "",
+          apn: normalizeBarcode(p.apn || ""),
+          pde: normalizeBarcode(p.pde || ""),
           name: p.stockName || "",
         }));
 
@@ -141,10 +142,10 @@ export function useCompetitorPricing(products: Product[] | null): CompetitorPric
               if (token.cancelled) return;
               try {
                 const result = await withTimeout(
-                  supabase.rpc("match_competitor_prices", { queries: slice as any }),
+                  matchCompetitorPrices({ data: { queries: slice } }),
                   RPC_TIMEOUT_MS,
                 );
-                data = (result as any)?.data;
+                data = result;
                 break; // success
               } catch (e: any) {
                 lastErr = e;
